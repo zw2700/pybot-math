@@ -273,7 +273,11 @@ def _terms(p, ns):
 def _chain(p, ns):
     """Multiply/divide a unique fully specified chain, with output conversion."""
     text = p.text.lower()
-    if _has(r'\b(?:left|remaining|more|less|than|profit|skips?|rest|already|'
+    if _has(r'forth and back|there and back|and then back', text):
+        return None
+    if _has(r'how long', p.question) and _has(r'\bsame (?:size|job|work)\b', text):
+        return None
+    if _has(r'\b(?:either|beat|left|remaining|more|less|than|profit|skips?|rest|already|'
             r'twice|thrice|half|double|times|bonus|extra|except|lost|gave|gives|'
             r'change|difference|wait|catch up|increase|decrease|breaks?|weekdays|weekends|workdays|days off)\b', text):
         return None
@@ -971,6 +975,11 @@ def _increment_cost(p, ns):
 
 
 def solve(problem):
+    if re.search(r'how many [a-z]+ and [a-z]+.*(?:altogether|total)', problem.question):
+        return None
+    if (re.search(r'\b(?:daily (?:serving|amount|requirement|goal|quota|intake)|recommended daily)\b', problem.body)
+            and re.search(r'\bweek\b', problem.question)):
+        return None
     ns = _numbers(problem)
     if not 2 <= len(ns) <= 7 or any(n.value <= 0 or n.kind == 'percent' for n in ns):
         return None

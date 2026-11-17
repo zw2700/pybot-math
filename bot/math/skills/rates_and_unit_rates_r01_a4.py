@@ -247,6 +247,10 @@ def _single_rate(p, ns):
         if not (_has(r'\b(?:has|had|is|was|savings|now|reduce|start|initial|places)\b', text)
                 and _has(r'\b(?:needs?|goal|reach|reduce|ready|now|more)\b', text)):
             return None
+        if (_has(r'\bis\s*$', text[:a.start]) and _has(r'\bis\s*$', text[:b.start])
+                and _has(r'^\s+square\b', text[a.end:]) and _has(r'^\s+square\b', text[b.end:])
+                and not _has(r'\b(?:already|left|remaining|goal|reach|reduce)\b', text)):
+            return None
         delta = abs(a.value-b.value)
         return _answer(delta/rate, '({} - {}) / {}'.format(
             format_number(max(a.value, b.value)), format_number(min(a.value, b.value)),
@@ -617,6 +621,11 @@ def _denominations(p, ns):
 
 
 def solve(problem):
+    if re.search(r'how many [a-z]+ and [a-z]+.*(?:altogether|total)', problem.question):
+        return None
+    if (re.search(r'\b(?:daily (?:serving|amount|requirement|goal|quota|intake)|recommended daily)\b', problem.body)
+            and re.search(r'\bweek\b', problem.question)):
+        return None
     ns = _quantities(problem)
     if not 2 <= len(ns) <= 4 or any(n.kind == 'percent' or n.value <= 0 for n in ns):
         return None

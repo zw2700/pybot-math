@@ -399,6 +399,8 @@ def _group_rate(p):
 
 
 def _daily_groups(p):
+    if _has(r'\bper (?!second\b|minute\b|hour\b|day\b|week\b|month\b|year\b)[a-z]+', p.body):
+        return None
     """An explicit daily amount times an entity count and a duration."""
     text = p.text.lower()
     # A subdaily rate needs a dimensional conversion before multiplying by

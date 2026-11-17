@@ -114,7 +114,10 @@ def _question(p):
         if m:
             return _normal(m.group(1))
         times = set(_unit(p,n) for n in p.numbers if _unit(p,n) in ('second','minute','hour','day','week'))
-        return next(iter(times)) if len(times) == 1 else 'hour'
+        if len(times) == 1:
+            return next(iter(times))
+        periods = set(re.findall(r'\b(?:per|each|every|a|an) (second|minute|hour|day|week|month|year)\b', p.body))
+        return next(iter(periods)) if len(periods) == 1 else 'hour'
     if q.startswith('how far'):
         return 'distance'
     if _has(r'\b(?:speed|mph|km/hr)\b', q):
@@ -295,6 +298,8 @@ def _dimensional(p, ns):
     if not 2 <= len(ns) <= 3:
         return None
     t = p.text.lower()
+    if _has(r'\bbeat\b|\b(?:forth|there) and back\b|and then back', p.question+' '+p.body):
+        return None
     if _has(r'\bwith (?:his|her|their)\b', t) and any(_unit(p, n) == 'person' for n in ns):
         return None  # The host may need an additional share.
     # Unit cancellation does not explain a change in stock, a comparison,
@@ -442,6 +447,8 @@ def _route_time(p, ns):
 
 
 def _sum_groups(p, ns):
+    if _has(r'\bin (?:tips|bonuses)\b', p.body):
+        return None
     if len(ns) != 3:
         return None
     t = p.text.lower()
@@ -926,6 +933,11 @@ def _regroup(p, ns):
 
 
 def solve(problem):
+    if re.search(r'how many [a-z]+ and [a-z]+.*(?:altogether|total)', problem.question):
+        return None
+    if (re.search(r'\b(?:daily (?:serving|amount|requirement|goal|quota|intake)|recommended daily)\b', problem.body)
+            and re.search(r'\bweek\b', problem.question)):
+        return None
     ns = _quantities(problem)
     if not ns or any(n.value <= 0 or n.kind == 'percent' for n in ns):
         return None

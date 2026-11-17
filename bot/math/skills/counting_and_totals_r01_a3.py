@@ -62,6 +62,8 @@ def _asked(p):
 
 def _proportion(p):
     """An observed input/output pair scaled to another amount of either unit."""
+    if _has(r'\bsame (?:size|job|work)\b', p.text.lower()) and _has(r'how long', p.question):
+        return None
     ns = p.numbers
     if len(ns) != 3 or any(n.kind != 'number' for n in ns):
         return None
