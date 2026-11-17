@@ -218,8 +218,28 @@ def _denominator(text, n, previous_end):
 
 def _purchases(p, ns):
     text = p.text.lower()
+    # An explicitly stated basket total is an equation, not another purchase.
+    # Leave missing-item prices to a reader that models that equation.
+    if (_has(r'\b(?:price|cost)\b', p.question)
+            and not _has(r'\b(?:total|all|altogether|together)\b', p.question)
+            and _has(r'\b(?:spent a total|total (?:amount|cost|price)|in total|together cost)\b', p.body)):
+        return None
+    if _has(r'\bnow has\b|\b(?:each|every) letter\b', p.body):
+        return None
+    if _has(r'\bor\b', p.body) and _has(r'\bseparate(?:ly)?\b', p.question):
+        return None
     money = [n for n in ns if _money(text, n)]
     counts = [n for n in ns if not _money(text, n)]
+    # A quoted price for N units is a total for that quantity. It cannot be
+    # multiplied by the sum of N and the separately requested quantity.
+    if len(money) == 1 and len(counts) == 2:
+        price = money[0]
+        for c in counts:
+            if c.start < price.start and _noun(text[c.end:]) == _noun(text[counts[0].end:]):
+                link = text[c.end:price.start]
+                if (_has(r'\b(?:costs?|for)\s*$', link)
+                        and not _has(r'\b(?:each|every|per)\b', link + text[price.end:])):
+                    return None
     if not money:
         return None
     # Nonlinear and comparative relations need dedicated schemas.
@@ -613,6 +633,9 @@ def _depreciation(p, ns):
 
 def solve(problem):
     text = problem.text.lower()
+    # This reader returns money, never a duration or a number of objects.
+    if re.match(r'how many (?!dollars?\b|cents?\b|euros?\b)', problem.question):
+        return None
     if _has(r'\bone of (?:the )?other\b', problem.question):
         return None
     # The shared number reader does not consume bare cardinal scales. A later

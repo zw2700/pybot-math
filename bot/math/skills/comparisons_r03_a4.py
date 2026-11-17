@@ -439,7 +439,7 @@ def _graph(p):
         cats = _category_mentions(after, nodes - set(names))
         periods = [node for node in nodes if node in _periods(local)]
         explicit_total = _has(_TOTAL, local) or _has(r'\bbetween\b.*\bof them\b', local)
-        joint = len(set(_mentions(local, nodes))) == len(nodes) and _has(r'\band\b.*\b(?:have|had|got|received|sold)\b', local)
+        joint = len(set(_mentions(local, nodes))) == len(nodes) and _has(r'\band\b.*\b(?:have|had|got|received|sold|shared|split)\b', local)
         category_joint = len(_category_mentions(after, nodes - set(names))) == len(nodes) and _has(r'\band\b', after)
         joint = joint or category_joint
         local_cats = _category_mentions(local, nodes - set(names))

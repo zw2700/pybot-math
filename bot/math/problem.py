@@ -38,8 +38,9 @@ class Problem:
         quantitative = quantitative or (any(n.kind == 'percent' for n in numbers)
                                         and re.search(r'\b(?:price|cost|salary|income|now)\b', question, re.I))
         quantitative = quantitative or (any(n.kind == 'money' for n in numbers)
-                                        and re.search(r'\b(?:price|cost|salary|earnings|profit|bill|amount of money)\b', question, re.I))
-        implicit_factor = bool(re.search(r'\b(?:twice|thrice|double|triple)\b', text, re.I))
+                                        and re.search(r'\b(?:price|cost|salary|earnings|profit|bill|discount|amount of money|amount[^?]*paid)\b', question, re.I))
+        implicit_factor = bool(re.search(r'\b(?:twice|thrice|double[ds]?|triple[ds]?)\b', text, re.I))
+        implicit_factor = implicit_factor or bool(re.search(r'\bquarterly\b', text, re.I))
         # A singular event at an explicit interval supplies an implicit one:
         # "takes a tablet every 8 hours ... how many tablets per week?"
         implicit_factor = implicit_factor or bool(re.search(

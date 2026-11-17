@@ -271,6 +271,14 @@ def _aggregate(p, terms):
 
 def _basket(p, ns):
     t = p.text.lower()
+    if _has(r'\bnow has\b|\b(?:each|every) letter\b', p.body):
+        return None
+    if _has(r'\bor\b', p.body) and _has(r'\bseparate(?:ly)?\b', p.question):
+        return None
+    if (_has(r'\b(?:price|cost)\b', p.question)
+            and not _has(r'\b(?:total|all|altogether|together)\b', p.question)
+            and _has(r'\btogether cost\b', p.body)):
+        return None
     ask = re.split(r'\b(?:if|when)\b', p.question)[0]
     if _has(r'\b(?:each|per|lose|lost|save|saved|savings)\b', ask):
         return None
@@ -280,11 +288,19 @@ def _basket(p, ns):
     query_periods = set(re.findall(r'\b(?:in|per|each|every|a) (?:a |one )?(day|week|month|year)\b', p.question))
     if query_periods and periods != query_periods:
         return None
-    if _has(r'\b(?:percent|twice|thrice|half|third|quarter|times|more|less|discount|rebate|'
+    if _has(r'\b(?:percent|twice|thrice|half|third|quarter|times|more|less|discount|rebate|coupon|'
             r'equally|split|shared|average|interest|tax|least|cheap|cheaper|cheapest|free)\b', p.body):
         return None
     money = [n for n in ns if n.kind == 'money']
     counts = [n for n in ns if n.kind != 'money']
+    if len(money) == 1 and len(counts) == 2:
+        price = money[0]
+        for c in counts:
+            if c.start < price.start and _same(_phrase(t[c.end:]), _phrase(t[counts[0].end:])):
+                link = t[c.end:price.start]
+                if (_has(r'\b(?:costs?|for)\s*$', link)
+                        and not _has(r'\b(?:each|every|per)\b', link + t[price.end:])):
+                    return None
     if any(_has(r'\b(?:pack|box|jar|bag|carton) of\s*$', t[:c.start]) for c in counts):
         return None  # Package contents are not another inventory to add.
     labels = {id(c): _phrase(t[c.end:]) for c in counts}
@@ -1038,6 +1054,8 @@ def solve(problem):
     ns = _numbers(problem)
     if not 2 <= len(ns) <= 12 or any(n.kind == 'percent' or n.value < 0 for n in ns):
         return None
+    if re.match(r'how many (?!dollars?\b|cents?\b|euros?\b)', problem.question):
+        return _output(problem, _missing_count(problem, ns))
     currencies = {n.raw[0] for n in ns if n.raw[:1] in '$£€'}
     if _has(r'\bdollars?\b', problem.text.lower()):
         currencies.add('$')
