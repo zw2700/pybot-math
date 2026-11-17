@@ -326,6 +326,9 @@ def _group_rate(p):
     if (not 2 <= len(numbers) <= 4 or any(n.kind != 'number' for n in numbers)
             or _has(r'\b(?:week|month|year|ratio|average|than|twice)\b', text)):
         return None
+    # An unquantified contribution per component needs an additional relation.
+    if _has(r'\b(?:a|an) [a-z]+(?: of [a-z]+)? for each\b', text):
+        return None
     pairs = set()
     for match in re.finditer(r'\b(?:each|per)\s+(?:of (?:the|his|her)\s+)?([a-z]+)', text):
         group = _singular(match.group(1))
