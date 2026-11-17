@@ -318,6 +318,10 @@ def _group_rate(p):
     N objects in each container; G containers; each container holds N objects.
     """
     text = p.text.lower()
+    # A quantity "in each of N containers" is itself a rate. Do not
+    # mistake it for loose items when another per-container rate follows.
+    if _has(r'\beach of\b', text):
+        return None
     numbers = p.numbers
     if (not 2 <= len(numbers) <= 4 or any(n.kind != 'number' for n in numbers)
             or _has(r'\b(?:week|month|year|ratio|average|than|twice)\b', text)):
@@ -472,6 +476,18 @@ def _different_owner(p):
 def _ledger(p):
     """A single stock, with explicit additions/removals and no rates/relations."""
     text = p.text.lower()
+    # A final stated whole after a list of categories overlaps the earlier
+    # counts. It belongs to a partition reader, not an additive ledger.
+    if len(p.numbers) >= 3 and _has(r'\bif there (?:are|were)\s*$',
+                                   p.body[:p.numbers[-1].start]):
+        return None
+    # Ingredients required to produce something are a recipe, not owned stock.
+    if _has(r'\bneeds?\s+[^.;!?]*\bto (?:make|produce)\b', p.body):
+        return None
+    if _has(r'\b(?:make|produce)\b[^.;!?]*\bfrom\b', p.body):
+        return None
+    if _has(r'\btotal\b', p.body) and _has(r'\bremaining\b', p.body):
+        return None
     if not 2 <= len(p.numbers) <= 5 or any(n.start >= len(p.body) or n.kind != 'number'
                                          for n in p.numbers):
         return None

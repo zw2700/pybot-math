@@ -197,7 +197,7 @@ def _comparisons(p):
         total_cue = re.search(r'\b(?:total|sum|together|altogether|combined|collectively|in all)\b', clause)
         mentioned = [node for node in nodes if re.search(r'\b'+re.escape(node)+r"(?:'s)?\b", clause)]
         # Joint possession is also a stated total: "A and B have 40 ...".
-        joint = len(mentioned) == len(nodes) and re.search(r'\band\b.*\b(?:have|spend|spent|bought|take home)\b', clause)
+        joint = len(mentioned) == len(nodes) and re.search(r'\band\b.*\b(?:have|spend|spent|bought|take home|played)\b', clause)
         listed_total = len(mentioned) == len(nodes) and re.search(r'\bincluding\b', clause)
         implicit_total = not mentioned and re.search(r'\bthere (?:are|were)\b', clause)
         # 'Nora has 12 beads in total' is Nora's anchor, not a joint sum.
