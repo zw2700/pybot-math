@@ -31,7 +31,7 @@ class Problem:
         question = text[ask.start():]
         quantitative = re.match(r'how (?:many|much|long|old|tall|far)|what percent(?:age)?|calculate|find the', question, re.I)
         quantitative = quantitative or re.search(
-            r'\b(?:percent(?:age)?|total|combined|number|average|grade|score|mark|weight|height|population|left|remaining|age|ages|distance|speed)\b',
+            r'\b(?:percent(?:age)?|total|combined|number|average|grade|score|mark|weight|height|population|left|remaining|age|ages|distance|speed|area|volume|perimeter)\b',
             question, re.I)
         # A percentage price relation is quantitative even when phrased as
         # "What was the original price?" rather than "How much ...?".

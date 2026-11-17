@@ -179,6 +179,8 @@ def _stock(p):
 
 def _groups(p):
     """Sum counts sharing a rate, or combine a product with a stock change."""
+    if _has(r'\b(?:longer|shorter|difference)\b', p.question):
+        return None  # These queries compare products rather than sum them.
     ns = p.numbers
     text = p.text.lower()
     if not 2 <= len(ns) <= 6 or any(n.kind != 'number' for n in ns):
@@ -229,6 +231,10 @@ def _groups(p):
     if len(relations) > 1:
         count_sets = {cs for _, cs in relations}
         rate_ids = {ri for ri, _ in relations}
+        # Two adjacent count/content pairs have independent sizes even when
+        # their container nouns coincide. Do not cross-multiply the pairs.
+        if len(ns) == 4 and rate_ids == {1, 3} and count_sets == {(0, 2)}:
+            return None
         if len(count_sets) != 1 or _has(r'\b(?:left|remaining|remain|more)\b', p.question):
             return None
         counts = next(iter(count_sets))

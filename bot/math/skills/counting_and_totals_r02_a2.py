@@ -110,6 +110,10 @@ def _grouped(p):
         return None
     body_problem = p.__class__(p.text[:len(p.body)], p.body, p.question, ns)
     rates = dict(_rates(body_problem, ns))
+    for i in range(1, len(ns)):
+        if (units[i] in _TIME and _has(r'\bon each of\s*$',
+                                     text[ns[i-1].end:ns[i].start])):
+            rates[i-1] = units[i]
     for i, n in enumerate(ns):
         if i and re.match(r'\s+[a-z]+ each\b', text[n.end:]):
             rates[i] = units[i-1]
@@ -153,6 +157,9 @@ def _grouped(p):
         # Join only an explicit unit or an exact time-unit conversion.
         candidates = [ci for ci in range(len(ns)) if ci != ri and
                       _conversion(Fraction(1), units[ci], denominator) is not None]
+        local = [ci for ci in candidates if _sentence(text, ns[ci]) == _sentence(text, ns[ri])]
+        if len(local) == 1:
+            candidates = local
         if len(candidates) > 1:
             exact = [ci for ci in candidates if units[ci] == denominator]
             chained = [ci for ci in candidates if ci in rates]

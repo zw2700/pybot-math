@@ -303,7 +303,8 @@ def _conversion(p):
 
 def _singular(word):
     irregular = {'feet': 'foot', 'children': 'child', 'people': 'person',
-                 'men': 'man', 'women': 'woman', 'mice': 'mouse'}
+                 'men': 'man', 'women': 'woman', 'mice': 'mouse',
+                 'bus': 'bus', 'buses': 'bus'}
     if word in irregular:
         return irregular[word]
     if word.endswith('ies'):
@@ -400,6 +401,10 @@ def _group_rate(p):
 def _daily_groups(p):
     """An explicit daily amount times an entity count and a duration."""
     text = p.text.lower()
+    # A subdaily rate needs a dimensional conversion before multiplying by
+    # daily operating time; leave it to a skill which reads that rate.
+    if _has(r'\b(?:per|each|every|a|an) (?:second|minute|hour)\b', p.body):
+        return None
     if _has(r'\b(?:kwh|kilowatt)\b',p.question):
         return None  # Power must be converted to the requested energy unit.
     if not _has(r'\b(?:a|per|each|every) day\b', p.body):
@@ -507,6 +512,8 @@ def _different_owner(p):
 def _ledger(p):
     """A single stock, with explicit additions/removals and no rates/relations."""
     text = p.text.lower()
+    if _has(r'\b(?:get|gets|got) off\b', p.body):
+        return None  # Postposed boarding/alighting needs a local event reader.
     # A final stated whole after a list of categories overlaps the earlier
     # counts. It belongs to a partition reader, not an additive ledger.
     if len(p.numbers) >= 3 and _has(r'\bif there (?:are|were)\s*$',

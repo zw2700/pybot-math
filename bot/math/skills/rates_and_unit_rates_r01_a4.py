@@ -16,7 +16,8 @@ def _has(pattern, text):
 def _singular(word):
     irregular = {'people': 'person', 'children': 'child', 'feet': 'foot',
                  'inches': 'inch', 'puppies': 'puppy', 'pies': 'pie',
-                 'cookies': 'cookie', 'brownies': 'brownie'}
+                 'cookies': 'cookie', 'brownies': 'brownie',
+                 'bus': 'bus', 'buses': 'bus'}
     if word in irregular:
         return irregular[word]
     if word.endswith('ies'):

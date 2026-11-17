@@ -105,6 +105,8 @@ def _grouped_total(p):
     """Reduce explicit per-group relations, then sum disjoint output counts."""
     ns = p.numbers
     text = p.text.lower()
+    if _has(r'\bdozen\b', text):
+        return None  # A dozen is a conversion, not an individual count.
     if not 2 <= len(ns) <= 5 or any(n.kind != 'number' for n in ns):
         return None
     if _has(r'\b(?:more|less|fewer|than|left|remaining|except|not|lost|loses|sold|'
