@@ -36,7 +36,7 @@ class Problem:
         # A percentage price relation is quantitative even when phrased as
         # "What was the original price?" rather than "How much ...?".
         quantitative = quantitative or (any(n.kind == 'percent' for n in numbers)
-                                        and re.search(r'\b(?:price|cost|salary|income)\b', question, re.I))
+                                        and re.search(r'\b(?:price|cost|salary|income|now)\b', question, re.I))
         implicit_factor = bool(re.search(r'\b(?:twice|thrice|double|triple)\b', text, re.I))
         # A singular event at an explicit interval supplies an implicit one:
         # "takes a tablet every 8 hours ... how many tablets per week?"

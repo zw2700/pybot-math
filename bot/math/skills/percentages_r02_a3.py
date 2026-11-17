@@ -590,6 +590,11 @@ def solve(problem):
     # belong to the ordinary help modules, rather than this narrative reader.
     if _has(r"^(?:i(?: am|'m)|we(?: are|'re))\s+(?:trying|learning|wondering)\b", problem.text.lower()):
         return None
+    # Resolve composed relations before trying the one-base readers below.
+    from .percentages_r04_a6 import solve as composed_percentages
+    composed = composed_percentages(problem)
+    if composed is not None:
+        return composed
     ns = _quantities(problem)
     if _has(r'^what (?:is the )?percent(?:age)?\b', problem.question):
         return _asked_percentage(problem, ns)

@@ -31,6 +31,8 @@ def _sentence(text, start, end):
 
 
 def _comparative_total(p):
+    if any(n.kind == 'percent' for n in p.numbers):
+        return None  # a relative difference is not an additive count
     if len(p.numbers) != 2 or not (_has(
             r'\b(total|combined|together|altogether)\b', p.question)
             or _has(r'\band\b.{0,30}\b(?:more|fewer)\b', p.body)):
