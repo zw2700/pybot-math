@@ -351,6 +351,12 @@ def _group_rate(p):
     ri, ci = next(iter(pairs))
     rate, count = numbers[ri].value, numbers[ci].value
     asked = re.match(r'how many\s+([a-z]+)', p.question)
+    # This schema multiplies in the rate's original units. Let a rate skill
+    # handle a requested conversion such as minutes per item to total hours.
+    if asked and _singular(asked.group(1)) in ('second', 'minute', 'hour'):
+        source = _unit(text, numbers[ri])
+        if source in ('second', 'minute', 'hour') and source != _singular(asked.group(1)):
+            return None
     if (asked and _singular(asked.group(1)) == _unit(text, numbers[ci])
             and _unit(text, numbers[ci]) != _unit(text, numbers[ri])):
         return None
@@ -388,6 +394,8 @@ def _group_rate(p):
 def _daily_groups(p):
     """An explicit daily amount times an entity count and a duration."""
     text = p.text.lower()
+    if _has(r'\b(?:kwh|kilowatt)\b',p.question):
+        return None  # Power must be converted to the requested energy unit.
     if not _has(r'\b(?:a|per|each|every) day\b', p.body):
         return None
     if _has(r'\b(?:more|less|left|lost|loses|increase|decrease|than|but|not|back|round trip)\b', text):

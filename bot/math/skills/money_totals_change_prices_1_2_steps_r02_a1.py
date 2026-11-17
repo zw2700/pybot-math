@@ -622,7 +622,7 @@ def solve(problem):
         currencies.add('€')
     if len(currencies) > 1:
         return None
-    if _has(r'\b(?:equally|evenly|split|shared (?!expenses)|average|round trip|there and back)\b', text):
+    if _has(r'\b(?:equally|evenly|splits?|shared (?!expenses)|average|round trip|there and back)\b', text):
         return None
     # Distinct named people with their own transactions need an ownership
     # model. A pronoun recipient of a gift does not introduce another ledger.

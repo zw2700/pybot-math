@@ -236,6 +236,8 @@ def _single_rate(p, ns):
     a, b = others
     au, bu = _unit(text, a), _unit(text, b)
     if au == bu == numerator:
+        if _has(r'\b(?:extra|aside from|in addition)\b',p.body):
+            return None  # An additional rate is not an existing stock.
         # Explicit net change: a goal and existing balance, heating/cooling,
         # a final stock, or before/after inventory with a per-box quantity.
         if not _has(r'\b(?:needs?|goal|save|savings|reduce|reach|ready|now|remaining|left)\b', text):

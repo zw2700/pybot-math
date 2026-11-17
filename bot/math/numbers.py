@@ -17,7 +17,7 @@ _UNDER100 = (r'(?:(?:' + '|'.join(TENS) + r')(?:[ -]+' + _ONES + r')?|'
              + '|'.join(sorted(SMALL, key=len, reverse=True)) + r')')
 _GROUP = r'(?:' + _ONES + r'[ -]+hundred(?:[ -]+(?:and[ -]+)?' + _UNDER100 + r')?|' + _UNDER100 + r')'
 _WORD_NUMBER = _GROUP + r'(?:[ -]+(?:billion|million|thousand)(?:[ -]+(?:and[ -]+)?' + _GROUP + r')?)*'
-_DIGIT = r'(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?'
+_DIGIT = r'(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)'
 _FRACTION_WORD = r'(?:half|halves|thirds?|quarters?|fourths?)'
 _TOKEN = re.compile(
     r'(?<![\w])(?:[$£€]\s*)?(?:'
@@ -71,7 +71,7 @@ def parse_number(text):
     elif re.fullmatch(r'\d+\s+\d+/\d+', clean):
         whole, part = clean.split()
         value = Fraction(whole) + Fraction(part)
-    elif re.fullmatch(r'\d+(?:\.\d+)?(?:\s*/\s*\d+)?', clean):
+    elif re.fullmatch(r'(?:\d+(?:\.\d+)?|\.\d+)(?:\s*/\s*\d+)?', clean):
         value = Fraction(clean.replace(' ', ''))
     else:
         words = clean.replace('-', ' ').split()
