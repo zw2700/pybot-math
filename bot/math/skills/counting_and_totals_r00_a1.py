@@ -432,7 +432,21 @@ def _daily_groups(p):
     answer = duration
     for n in used:
         answer *= n.value
-    return _result(answer, ' x '.join([_f(n.value) for n in used] + [_f(duration)]))
+    expression = ' x '.join([_f(n.value) for n in used] + [_f(duration)])
+    # A repeated daily duration is still measured in its original unit.
+    # Convert it when the question asks for a different time unit.
+    asked_time = re.match(r'how many (seconds?|minutes?|hours?)\b', p.question)
+    if asked_time:
+        scale = {'second': 1, 'minute': 60, 'hour': 3600}
+        source = [_unit(text, n) for n in used if _unit(text, n) in scale]
+        if len(source) != 1:
+            return None
+        target = _singular(asked_time.group(1))
+        factor = Fraction(scale[source[0]], scale[target])
+        answer *= factor
+        if factor != 1:
+            expression = '(' + expression + ') x ' + _f(factor)
+    return _result(answer, expression)
 
 
 _VERBS = re.compile(

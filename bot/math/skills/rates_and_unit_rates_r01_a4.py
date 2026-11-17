@@ -460,7 +460,15 @@ def _sharing(p, ns):
         total, people = ns
         if _has(r'\b(?:shared|share|split|divided|divide|distributed|distribute)\b', text) and people.value > 0:
             if _unit(text, total) == _asked(p) and _unit(text, people) != _asked(p):
-                return _calc(total.value, '/', people.value)
+                amount, recipients = total.value, people.value
+                if _has(r'^\s+dozen\b', text[total.end:]):
+                    amount *= 12
+                # 'With her N siblings/friends' includes the owner in the split.
+                if (_has(r'\b(?:with|and)\s+(?:his|her|their)\s*$', text[:people.start])
+                        and _unit(text, people) in ('sibling', 'friend', 'brother', 'sister', 'child')
+                        and _has(r'\beach person\b', p.question)):
+                    recipients += 1
+                return _calc(amount, '/', recipients)
         # A coordinated pair of buyers, with explicitly even sharing.
         # Do not infer group size from an arbitrary list elsewhere in the story.
         if _has(r'\bsplit (?:the )?costs? evenly\b', p.body) and _asked(p) == 'dollar':
