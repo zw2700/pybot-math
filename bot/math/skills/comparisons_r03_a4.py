@@ -449,6 +449,11 @@ def _graph(p):
     if solved is None:
         return None
     relative = _relative_query(body, query, nodes, names)
+    # Asking for the cost of an assembly concerns all its components. The
+    # extended comparison reader can sum those; a mentioned component alone
+    # does not identify the requested cost.
+    if _has(r'\bcost to (?:plant|build|make|assemble)\b', query):
+        return None
     if relative is None and _has(r"'s (?:sister|brother|mother|father|daughter|son|grandmother|grandfather)\b", query):
         return None
     named = relative or _mentions(query, nodes & set(names))
