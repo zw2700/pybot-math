@@ -6,8 +6,8 @@ from .numbers import read_numbers
 
 
 ASK = re.compile(
-    r'\b(?:how (?:many|much|long|old|tall|far)|what (?:percent(?:age)?|is|are|was|will|would|grade|score|mark|number)|'
-    r"what's|what (?:distance|speed)|calculate|find the (?:total|number|combined))\b", re.I)
+    r'\b(?:how (?:many|much|long|old|tall|far)|what (?:percent(?:age)?|is|are|was|will|would|does|did|do|grade|score|mark|number)|'
+    r"what's|what (?:distance|speed)|calculate|determine (?:the |her |his |their )?(?:annual |yearly |total )?(?:salary|earnings|cost|price)|find the (?:total|number|combined))\b", re.I)
 
 
 @dataclass
@@ -37,6 +37,8 @@ class Problem:
         # "What was the original price?" rather than "How much ...?".
         quantitative = quantitative or (any(n.kind == 'percent' for n in numbers)
                                         and re.search(r'\b(?:price|cost|salary|income|now)\b', question, re.I))
+        quantitative = quantitative or (any(n.kind == 'money' for n in numbers)
+                                        and re.search(r'\b(?:price|cost|salary|earnings|profit|bill|amount of money)\b', question, re.I))
         implicit_factor = bool(re.search(r'\b(?:twice|thrice|double|triple)\b', text, re.I))
         # A singular event at an explicit interval supplies an implicit one:
         # "takes a tablet every 8 hours ... how many tablets per week?"

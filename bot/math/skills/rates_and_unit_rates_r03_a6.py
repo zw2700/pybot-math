@@ -278,6 +278,11 @@ def _chain(p, ns):
             r'change|difference|wait|catch up|increase|decrease|breaks?|weekdays|weekends|workdays|days off)\b', text):
         return None
     asked = _asked(p)
+    # Independent prices belong to a money ledger. Dimensional cancellation
+    # alone can manufacture a spurious currency answer from a basket by
+    # dividing one of its prices and multiplying the others.
+    if asked == 'dollar' and sum(n.kind == 'money' for n in ns) > 1:
+        return None
     if not asked:
         # A duration query is unambiguous if there is only one time unit.
         if _has(r'how long|total time', p.question):

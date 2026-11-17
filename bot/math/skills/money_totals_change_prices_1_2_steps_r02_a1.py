@@ -223,8 +223,12 @@ def _purchases(p, ns):
     if not money:
         return None
     # Nonlinear and comparative relations need dedicated schemas.
-    if _has(r'\b(?:percent|twice|thrice|half|thirds?|fourths?|quarters?|ratio|profit|interest|tax rate|times as|more than|less than)\b', text):
+    if _has(r'\b(?:percent|twice|thrice|double|triple|half|thirds?|fourths?|quarters?|ratio|profit|interest|tax rate|times as|more than|less than)\b', text) or _has(r'\b\w+\s+more\s+(?:meters?|grams?|pounds?|[a-z]+s)\b', p.body):
         return None
+    if _has(r'\b(?:different|other|remaining)\b', p.question) and _has(r'\bin total[^.;]*\bpaid\b|\bpaid[^.;]*\bin total\b', p.body):
+        return None
+    if any(n.start >= len(p.body) for n in ns):
+        return None  # Quantities in a new requested basket need unit equations.
     if _has(r'\b(?:discount|rebate|coupon)\b', text):
         return None
     if any(n.start >= len(p.body) and _money(text, n) for n in ns):
@@ -325,6 +329,8 @@ def _quantities(p):
     text = p.text.lower()
     ns = []
     for n in p.numbers:
+        if n.value == 1 and _has(r'\bprice of\s*$', text[:n.start]):
+            continue
         if n.value == 1 and _has(r'^\s+[a-z]+\s+cost(?:s| is)?\b', text[n.end:]):
             continue
         if n.start >= len(p.body) and not _money(text, n) and any(
@@ -607,6 +613,12 @@ def _depreciation(p, ns):
 
 def solve(problem):
     text = problem.text.lower()
+    if _has(r'\bone of (?:the )?other\b', problem.question):
+        return None
+    # The shared number reader does not consume bare cardinal scales. A later
+    # skill can normalize these locally; do not silently ignore their stock.
+    if _has(r'\b(?:a|an) (?:hundred|thousand|million)\b', text):
+        return None
     ns = _quantities(problem)
     ask = re.split(r'\b(?:if|when)\b', problem.question)[0]
     if _has(r'\b(?:each|per|every|coins?|bills?|notes?)\b', ask):
