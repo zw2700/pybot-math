@@ -184,6 +184,13 @@ def _chain(p, return_values=False):
     if not cues:
         return None
     body, query = tokenized[:cues[-1].start()], tokenized[cues[-1].start():]
+    if _has(_FACTOR + r' (?:the )?sum of\b', body):
+        return None
+    # A date immediately before the question scopes the requested ages.
+    trailing_date = re.search(r'\b(?:in|after) q\d+ years?,?\s*$', body)
+    if trailing_date and re.search(r'\b(?:old|older|younger|age|ages|years)\b', query):
+        query += ' ' + trailing_date.group().rstrip(' ,')
+        body = body[:trailing_date.start()]
     conditional = re.split(r'\bif\b', query, maxsplit=1)
     if len(conditional) == 2:
         query = conditional[0]
@@ -327,6 +334,7 @@ def _chain(p, return_values=False):
         if age:
             lt, li = _shift(before, values)
             rt, ri = _shift(after, values)
+            used.update(li | ri)
             if li:
                 # A leading date applies to both people unless the reference
                 # explicitly names a present age.
@@ -417,7 +425,7 @@ def _chain(p, return_values=False):
         context = clauses[-1]
         if _has(r'^if\b.*\b(?:goes|buys|attends)\b', context) and not _indices(context):
             asked_periods = [n for n in nodes if n in _events(context)]
-    if asked_periods:
+    if asked_periods and nodes <= set(_events(body)):
         asked = asked_periods
     if not asked:
         asked = _category_mentions(query, categories)
@@ -448,7 +456,9 @@ def _chain(p, return_values=False):
             return None
         targets = asked if len(asked) > 1 else list(nodes)
         result = sum((solved[n] for n in targets), Fraction(0)) / len(targets) + query_shift
-    elif _has(r'\bdifference\b|\bhow (?:many|much) (?:more|less|fewer|older|younger|taller|shorter|heavier|lighter)\b', query):
+    elif _has(r'\bdifference\b|\bhow (?:many|much) (?:(?:years?|' + _UNIT + r') )?(?:more|less|fewer|older|younger|taller|shorter|heavier|lighter)\b', query):
+        if age and len(asked) == 1 and len(nodes) == 2 and _has(r'\bthan (?:him|her)\b', query):
+            asked += [n for n in nodes if n not in asked]
         if len(asked) != 2:
             return None
         result = abs(solved[asked[0]]-solved[asked[1]])

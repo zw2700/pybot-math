@@ -565,6 +565,15 @@ def _mixed_unit_sum(p):
 
 
 def solve(problem):
+    # A multiplier on a combined left side must not be discarded while
+    # reading the comparison on the right side.
+    if re.search(r'\b(?:twice|thrice|double|triple|\w+ times) (?:the )?sum of\b', problem.body):
+        return None
+    # Unnamed possessive relatives are people, not object categories. The
+    # extended comparison skill resolves these references explicitly.
+    relatives = set(re.findall(r'\b(?:her|his|their) (sister|brother|mother|father|grandmother|grandfather)\b', problem.body))
+    if len(relatives) > 1:
+        return None
     for rule in (_mixed_unit_sum, _unlabelled_equation, _graph):
         result = rule(problem)
         if result is not None:
