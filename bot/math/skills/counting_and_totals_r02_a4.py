@@ -186,6 +186,9 @@ def _groups(p):
     if _has(r'\b(?:than|twice|half|double|percent|average|ratio|except|not|'
             r'fewer|less|cost|price)\b', text):
         return None
+    # A fraction of the inventory is a share, not an absolute stock change.
+    if any(0 < n.value < 1 and _has(r'^\s+of\b', text[n.end:]) for n in ns):
+        return None
     units = [_unit(p, n) for n in ns]
     asked = _asked(p)
     if not asked or not all(units):
