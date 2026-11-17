@@ -323,6 +323,10 @@ def _group_rate(p):
     if _has(r'\beach of\b', text):
         return None
     numbers = p.numbers
+    # A fractional comparison describing items per group is not itself an
+    # independently stated per-group quantity.
+    if any(n.value < 1 for n in numbers) and _has(r'\btimes as (?:many|much)\b', text):
+        return None
     if (not 2 <= len(numbers) <= 4 or any(n.kind != 'number' for n in numbers)
             or _has(r'\b(?:week|month|year|ratio|average|than|twice)\b', text)):
         return None

@@ -458,6 +458,10 @@ def _factor_total(p):
     elif not factors:
         for i, n in enumerate(ns):
             if _has(r'^\s+times (?:more|as (?:many|much))\b', text[n.end:]):
+                # A fractional increase adds a share of the base; it is not
+                # itself the entire second group's multiplier.
+                if n.value < 1 and _has(r'^\s+times more\b', text[n.end:]):
+                    return None
                 if factor is not None:
                     return None
                 factor = n.value
