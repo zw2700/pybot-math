@@ -155,6 +155,12 @@ def _linear(equations, nodes):
 
 
 def _chain(p, return_values=False):
+    if re.search(r'\bnot\b', p.question):
+        return None
+    if re.search(r'\btimes (?:the )?(?:number|amount) of [a-z]+(?: [a-z]+){0,2} as [a-z]+\b', p.body):
+        return None
+    if re.search(r'\bas those who\b|\bnumber of [a-z]+(?: [a-z]+)? [A-Z][a-z]+ (?:washed|cooked|picked|found)\b', p.text):
+        return None
     text, display = _prepare(p)
     # Coin denominations are count nouns here, not the fraction 'one quarter'.
     text = re.sub(r'\bquarters\b(?!\s+of\b)', 'quartercoins', text, flags=re.I)

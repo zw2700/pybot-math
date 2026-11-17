@@ -197,6 +197,24 @@ def _result(answer, working):
 
 
 def _graph(p):
+    if re.search(r'\bnot\b', p.question):
+        return None
+    # A kinship phrase denotes a distinct owner, and a quantity after "some"
+    # anchors its explicit category rather than the first mentioned category.
+    if (re.search(r'\bhas some [a-z]+,', p.body) or
+            re.search(r'\b(?:his|her) (?:sister|brother|mother|father|mom|dad)\b', p.body)
+            and not re.search(r'\b(?:old|age|ages|years?)\b', p.body)):
+        return None
+    if re.search(r'\btimes (?:the )?(?:number|amount) of [a-z]+(?: [a-z]+){0,2} as [a-z]+\b', p.body):
+        return None
+    # Relative clauses identify subgroups or distinct objects, not a single
+    # variable for the actor or the common head noun.
+    if re.search(r'\bas those who\b|\bnumber of [a-z]+(?: [a-z]+)? [A-Z][a-z]+ (?:washed|cooked|picked|found)\b', p.text):
+        return None
+    # Experience comparisons need the elapsed years on both sides, just as
+    # age does. The later comparison adapter supplies that age interpretation.
+    if re.search(r'\byears? of experience\b', p.text, re.I):
+        return None
     parts = _tokens(p)
     if parts is None or any(n.kind == 'percent' for n in p.numbers) or len(p.numbers) > 7:
         return None

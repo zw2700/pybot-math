@@ -95,6 +95,14 @@ def _equation_graph(edges, known, total):
 
 
 def _comparisons(p):
+    if re.search(r'\bnot\b', p.question):
+        return None
+    if re.search(r'\btimes (?:the )?(?:number|amount) of [a-z]+(?: [a-z]+){0,2} as [a-z]+\b', p.body):
+        return None
+    # Object-specific counted clauses cannot be represented by one variable
+    # per actor; the extended category reader keeps those objects distinct.
+    if re.search(r'\bnumber of [a-z]+(?: [a-z]+)? [A-Z][a-z]+ (?:washed|cooked|picked|found)\b', p.text):
+        return None
     values = p.values
     if any(n.kind == 'percent' for n in p.numbers) or len(values) > 5:
         return None
