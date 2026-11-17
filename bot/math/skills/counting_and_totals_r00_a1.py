@@ -117,6 +117,12 @@ def _sum_and_difference(p):
         if not relation:
             continue
         direction, first, second = relation.groups()
+        # A count of one named category is a known base, not a combined
+        # total. A question naming both categories asks for their sum.
+        if (_unit(text, p.numbers[1-i]) in (_singular(first), _singular(second))
+                or (_has(r'\b' + first + r'\b', p.question)
+                    and _has(r'\b' + second + r'\b', p.question))):
+            return None
         if not _has(r'\b(?:there are|there were|total|altogether|combined)\b', p.body):
             return None
         if _has(r'\b' + first + r'\b', p.question):
@@ -469,9 +475,13 @@ def _ledger(p):
     if not 2 <= len(p.numbers) <= 5 or any(n.start >= len(p.body) or n.kind != 'number'
                                          for n in p.numbers):
         return None
+    # Adjacent quantities such as "three 5-minute talks" describe groups,
+    # not separate entries in an additive inventory.
+    if any(not text[a.end:b.start].strip() for a, b in zip(p.numbers, p.numbers[1:])):
+        return None
     if _has(r'\b(?:each|per|every|times|twice|half|ratio|average|percent|fewer|less|than|'
             r'double|equal|both|same|weighs?|costs?|price|ago|older|younger|taller|spare|'
-            r'new|old|a day|a week)\b', text):
+            r'new|old|a day|a week|rest|remainder|reserved|occupied|dedicated|allocated)\b', text):
         return None
     if any(n.value.denominator != 1 for n in p.numbers):
         return None
@@ -499,6 +509,11 @@ def _ledger(p):
             # A postposed verb, e.g. "three red and two green balloons burst".
             post = list(_VERBS.finditer(sentence))
             if not post:
+                return None
+            # An unknown earlier action must not inherit a later action's
+            # sign ("ordered 8 ... then lost 5"). Leave this to a reader
+            # that recognizes that action explicitly.
+            if _has(r'\b(?:ordered|purchased|reserved|allocated)\b', sentence):
                 return None
             verb = post[-1].group()
         negative = verb in _NEGATIVE
