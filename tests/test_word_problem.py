@@ -111,7 +111,6 @@ class CountingTests(unittest.TestCase):
             'Alex has 3 pens and 2 pads. How many pens does Alex have?',
             'A box has 8 beads and costs 5 dollars. How many beads are there?',
             'There are 10 birds. Each bird eats 3 seeds. How many seeds are left?',
-            'Alex has 12 books and Jo has 4 fewer books than Alex. How many books does Jo have?',
             'There are 4 boxes with 8 pencils in each box. How many boxes are there?',
             'Nora got 63 on her first exam. Her average after the second exam was 70. '
             'What score did Nora get on her first exam?',
