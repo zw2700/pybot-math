@@ -13,7 +13,7 @@ from ..problem import ASK
 # Sentence-initial function words are not entity names.
 _NOT_NAMES = set(('a an the if when how what there at in on after before together '
                   'this that he she his her they their it its now three two one '
-                  'twice thrice double triple both all').split())
+                  'twice thrice double triple both all note to of compared according').split())
 _FACTOR = r'(?:twice|thrice|double|triple|Q\d+ times)'
 
 
@@ -40,7 +40,7 @@ def _mentions(text, names):
 
 def _noun(text):
     text = re.sub(r'^(?:the |a |an |number of |amount of )+', '', text.strip())
-    if re.match(r'(?:he|she|they|it|his|her|their)\b', text) or re.search(r'\bfor (?:his|her|their)\b', text):
+    if re.match(r'(?:he|she|they|it|his|her|their|there)\b', text) or re.search(r'\bfor (?:his|her|their)\b', text):
         return None
     text = re.split(r'\b(?:that|who|which|in|at|on|for|to|did|does|do|has|have|had|is|are|was|were|will|as|costs|cost|weighs|weigh|spends|spend)\b|[,.;?!]', text)[0]
     text = text.strip()
@@ -98,6 +98,15 @@ def _comparisons(p):
     values = p.values
     if any(n.kind == 'percent' for n in p.numbers) or len(values) > 5:
         return None
+    measured_units = set()
+    for number in p.numbers:
+        unit = re.match(r'\s+(seconds?|minutes?|hours?|days?|weeks?|pounds?|ounces?|feet|foot|inches|inch|yards?|grams?|kilograms?|centimeters?|meters?|kilometers?)\b', p.text[number.end:], re.I)
+        if unit:
+            measured_units.add(unit.group(1).lower().rstrip('s'))
+    if len(measured_units) > 1:
+        # This reader's variables share one unit. A conversion needs the
+        # measured-comparison reader rather than bare quantity arithmetic.
+        return None
     # Time shifts, rates and transactions need other schemas.
     if re.search(r'\b(?:ago|from now|per|each|every|sold|owes|remaining|left|average|faster|fast)\b', p.body):
         return None
@@ -124,15 +133,27 @@ def _comparisons(p):
     subject = None
     for clause in clauses:
         # An optional additive adjustment precedes the multiplicative relation.
-        mult = re.search(r'(?:(Q\d+)\s+(?:[a-z]+\s+){0,2}?(more|less|fewer)\s+(?:[a-z]+\s+){0,5}?than\s+)?(' + _FACTOR + r')\s+(?:as (many|much|old|long)\s*(.*?)\s+as\s+|(?:the )?(?:number|amount) of\s+|more than\s+)', clause)
+        mult = re.search(r'(?:(Q\d+)\s+(?:[a-z]+\s+){0,2}?(more|less|fewer)\s+(?:[a-z]+\s+){0,5}?than\s+)?(' + _FACTOR + r')\s+(?:as (many|much|old|long)(.*?)\s+as\s+|(?:the )?(?:number|amount) of\s+|more than\s+)', clause)
         add = None if mult else re.search(r'(Q\d+)\s+(?!times\b)(?:\w+\s+){0,3}?(more|less|fewer|older|younger|higher|lower)\b(.*?)\bthan\s+', clause)
+        # A multiplicative relation in an unsupported phrasing must not be
+        # reduced to its additive prefix ("5 more than twice ...").
+        if add and re.search(_FACTOR, clause):
+            return None
         match = mult or add
         if not match:
             mentioned = _mentions(clause, names)
             if mentioned:
                 subject = mentioned[-1]
             continue
+        if mult and len(re.findall(_FACTOR, clause)) > 1:
+            # A second comparison needs its own equation and subject. Do not
+            # swallow it while finding the reference of the first one.
+            return None
         before, after = clause[:match.start()], clause[match.end():]
+        if add and re.search(r'\b(?:price|cost) of\b', before):
+            # A named item may occur inside another item's price statement;
+            # the extended category reader resolves those noun phrases.
+            return None
         if not _mentions(before, names) and subject and (not before.strip() or re.match(r"\s*(?:it|he|she|that(?:'s)?)\b", before)):
             before = subject + ' ' + before
         left_names, right_names = _mentions(before, names), _mentions(after, names)
@@ -200,8 +221,17 @@ def _comparisons(p):
         joint = len(mentioned) == len(nodes) and re.search(r'\band\b.*\b(?:have|spend|spent|bought|take home|played)\b', clause)
         listed_total = len(mentioned) == len(nodes) and re.search(r'\bincluding\b', clause)
         implicit_total = not mentioned and re.search(r'\bthere (?:are|were)\b', clause)
-        # 'Nora has 12 beads in total' is Nora's anchor, not a joint sum.
-        shared_total = total_cue and not (len(mentioned) == 1 and mentioned[0] in names)
+        if implicit_total:
+            # "There are 6 female members" anchors the female category;
+            # it does not give the combined number of males and females.
+            after = clause.split(token)[-1]
+            for node in nodes:
+                stem = {'children': 'child', 'people': 'person', 'men': 'man',
+                        'women': 'woman'}.get(node, node[:-1] if node.endswith('s') else node)
+                if re.search(r'\b' + re.escape(stem) + r'(?:s)?\b', after):
+                    return None
+        # A total belonging to one owner or category anchors that variable.
+        shared_total = total_cue and len(mentioned) != 1
         if shared_total or joint or implicit_total or listed_total:
             if total is not None:
                 return None
