@@ -6,7 +6,7 @@ from .numbers import read_numbers
 
 
 ASK = re.compile(
-    r'\b(?:how (?:many|much|long|old)|what (?:is|are|was|will|would|grade|score|mark|number)|'
+    r'\b(?:how (?:many|much|long|old|tall)|what (?:percent(?:age)?|is|are|was|will|would|grade|score|mark|number)|'
     r"what's|calculate|find the (?:total|number|combined))\b", re.I)
 
 
@@ -29,10 +29,14 @@ class Problem:
         # Require a quantitative question and a narrative with multiple quantities.
         # In particular, a numerical personal statement is never enough to trigger.
         question = text[ask.start():]
-        quantitative = re.match(r'how (?:many|much|long|old)|calculate|find the', question, re.I)
+        quantitative = re.match(r'how (?:many|much|long|old|tall)|what percent(?:age)?|calculate|find the', question, re.I)
         quantitative = quantitative or re.search(
-            r'\b(?:total|combined|number|average|grade|score|mark|weight|height|population|left|remaining|age|ages)\b',
+            r'\b(?:percent(?:age)?|total|combined|number|average|grade|score|mark|weight|height|population|left|remaining|age|ages)\b',
             question, re.I)
+        # A percentage price relation is quantitative even when phrased as
+        # "What was the original price?" rather than "How much ...?".
+        quantitative = quantitative or (any(n.kind == 'percent' for n in numbers)
+                                        and re.search(r'\b(?:price|cost|salary|income)\b', question, re.I))
         implicit_factor = bool(re.search(r'\b(?:twice|thrice|double|triple)\b', text, re.I))
         enough_numbers = len(numbers) >= 2 or (bool(numbers) and implicit_factor)
         if (not quantitative or not enough_numbers or len(text.split()) < 12
