@@ -291,6 +291,8 @@ def _flat_and_unit(p, ns):
     if not _has(r'\b(?:cost|pay|paid|spend|spent)\b', p.question):
         return None
     t = p.text.lower()
+    if _has(r'\bfor the first (?:day|week|month|year)\b', t):
+        return None  # This price replaces a first interval of the unit charge.
     if _has(r'\b(?:discount|more|less|left|remaining|total|profit|twice|times|every|daily|weekly)\b', p.body):
         return None
     money = [n for n in ns if n.kind == 'money']

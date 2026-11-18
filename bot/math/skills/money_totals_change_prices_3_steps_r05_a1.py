@@ -271,6 +271,9 @@ def _aggregate(p, terms):
 
 def _basket(p, ns):
     t = p.text.lower()
+    if (_has(r'\bexpenses\b', p.question)
+            or _has(r'\bingredients\b', p.body) and _has(r'\bmake\b', p.body)):
+        return None  # Production costs and receipts need a unit-margin ledger.
     if _has(r'\bnow has\b|\b(?:each|every) letter\b', p.body):
         return None
     if _has(r'\bor\b', p.body) and _has(r'\bseparate(?:ly)?\b', p.question):
