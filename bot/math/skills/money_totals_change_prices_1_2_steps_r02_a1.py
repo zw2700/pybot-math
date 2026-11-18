@@ -538,6 +538,9 @@ def _depreciation(p, ns):
 
 
 def solve(problem):
+    # A percentage query needs a ratio, not this skill's money sum/difference.
+    if re.search(r'\bpercent(?:age)?\b', problem.text, re.I):
+        return None
     text = problem.text.lower()
     # This reader returns money, never a duration or a number of objects.
     if re.match(r'how many (?!dollars?\b|cents?\b|euros?\b)', problem.question):

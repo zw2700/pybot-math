@@ -556,6 +556,11 @@ def solve(problem):
     # belong to the ordinary help modules, rather than this narrative reader.
     if _has(r"^(?:i(?: am|'m)|we(?: are|'re))\s+(?:trying|learning|wondering)\b", problem.text.lower()):
         return None
+    # Resolve explicit bases before the older broad one-base readers.
+    from .percentages_r13_a3 import solve as explicit_percentages
+    explicit = explicit_percentages(problem)
+    if explicit is not None:
+        return explicit
     # Resolve composed relations before trying the one-base readers below.
     from .percentages_r04_a6 import solve as composed_percentages
     composed = composed_percentages(problem)
