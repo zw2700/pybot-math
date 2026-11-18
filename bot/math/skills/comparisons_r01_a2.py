@@ -95,6 +95,13 @@ def _equation_graph(edges, known, total):
 
 
 def _comparisons(p):
+    if re.search(r'\bneed\b.*\badd\b', p.question):
+        return None
+    # Calendar periods are separate amounts, even with a single named earner.
+    if re.search(r'\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\b', p.body):
+        return None
+    if re.search(r'\b(?:share[ds]?|split|divide[ds]?)\b.*\bequally\b', p.question):
+        return None
     if re.search(r'\bnot\b', p.question):
         return None
     if re.search(r'\btimes (?:the )?(?:number|amount) of [a-z]+(?: [a-z]+){0,2} as [a-z]+\b', p.body):
@@ -149,6 +156,8 @@ def _comparisons(p):
             return None
         match = mult or add
         if not match:
+            if re.search(_FACTOR, clause):
+                return None
             mentioned = _mentions(clause, names)
             if mentioned:
                 subject = mentioned[-1]

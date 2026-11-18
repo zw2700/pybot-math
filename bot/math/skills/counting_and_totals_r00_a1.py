@@ -67,7 +67,7 @@ def _comparative_total(p):
     # while a comparative needs "than", "fewer", or an explicit second period.
     if not _has(r'\bthan\b|\bfewer\b', text):
         return None
-    if _has(r'\b(?:times|twice|half|percent|each|per|average|ratio)\b', text):
+    if _has(r'\b(?:times|twice|thrice|double|triple|quadruple|half|percent|each|per|average|ratio)\b', text):
         return None
     return _result(2 * base + sign * delta,
                    '{0} + ({0} {1} {2})'.format(_f(base), '+' if sign > 0 else '-', _f(delta)))

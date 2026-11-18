@@ -7,7 +7,7 @@ Unexplained quantities, inconsistent equations and ambiguous queries abstain.
 import re
 from fractions import Fraction
 
-from ..numbers import read_numbers, format_number
+from ..numbers import read_numbers, format_number, _DIGIT, _WORD_NUMBER
 from ..problem import ASK, Problem
 from .comparisons_r01_a2 import _names
 from .comparisons_r03_a4 import (
@@ -97,6 +97,20 @@ def _expand_event_references(body):
 def _prepare(p):
     """Resolve possessive kinship phrases without merging people with relatives."""
     text = p.text
+    # A date after an age belongs to that anchor. Put it before the owner so
+    # it cannot be mistaken for a date on the question or another comparison.
+    _NUMBER = r'(?:' + _DIGIT + '|' + _WORD_NUMBER + ')'
+    text = re.sub(r'\ba year ago\b', '1 year ago', text, flags=re.I)
+    text = re.sub(r'\b([A-Z][a-z]+|he|she) will be (' + _NUMBER +
+                  r')(?: years? old)? in (' + _NUMBER + r') years?\b',
+                  r'In \3 years, \1 will be \2 years old', text)
+    cues = list(ASK.finditer(text))
+    if cues:
+        cut = cues[-1].start()
+        if re.fullmatch(r'how old will [A-Za-z]+ be\s*\?', text[cut:], re.I):
+            dates = list(re.finditer(r'\b(?:in|after) (' + _NUMBER + r') years?\b', text[:cut], re.I))
+            if len(dates) == 1:
+                text = text[:cut] + text[cut:].rstrip(' ?') + ' in ' + dates[0].group(1) + ' years?'
     text = re.sub(r'\bas many times as many\b', 'as many', text, flags=re.I)
     primary = _names(text)
     aliases = {}
@@ -155,6 +169,10 @@ def _linear(equations, nodes):
 
 
 def _chain(p, return_values=False):
+    if re.search(r'\bneed\b.*\badd\b', p.question):
+        return None
+    if re.search(r'\b(?:share[ds]?|split|divide[ds]?)\b.*\bequally\b', p.question):
+        return None
     if re.search(r'\bnot\b', p.question):
         return None
     if re.search(r'\btimes (?:the )?(?:number|amount) of [a-z]+(?: [a-z]+){0,2} as [a-z]+\b', p.body):
@@ -171,7 +189,13 @@ def _chain(p, return_values=False):
     if not 1 <= len(numbers) <= 10 or any(n.kind == 'percent' for n in numbers):
         return None
     units = []
+    raw_questions = list(ASK.finditer(text))
+    question_start = raw_questions[-1].start() if raw_questions else len(text)
     for number in numbers:
+        # Query numbers are checked separately as dates or exact group labels.
+        # A label such as "the three days" is not a measurement of rainfall.
+        if number.start >= question_start:
+            continue
         unit = re.match(r'\s+(' + _UNIT + r')\b', text[number.end:].lower())
         if unit:
             units.append(_UNITS[_singular(unit.group(1))])
@@ -603,6 +627,8 @@ def _remainder(p):
 
 def _stock_graph(p):
     """Subtract compared allocations from a separately stated whole stock."""
+    if read_numbers(p.question):
+        return None
     rest_owner = re.search(r'\b([a-z]+) (?:picked up|received|got|has|took) the rest\b', p.body)
     asks_rest = rest_owner and _has(r'\b' + re.escape(rest_owner.group(1)) + r'\b', p.question)
     if not asks_rest and not _has(r'\b(?:left|remain|remaining)\b', p.question):

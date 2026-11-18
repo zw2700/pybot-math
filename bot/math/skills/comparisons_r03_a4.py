@@ -28,7 +28,7 @@ _ADD = re.compile(r'\b(q\d+)\s+(?!times\b)(?:([a-z]+(?: [a-z]+)?)\s+)?'
                   r'\s*(.*?)\s+than\s+')
 _SIGN = {'less': -1, 'fewer': -1, 'younger': -1, 'lighter': -1, 'shorter': -1}
 _TOTAL = r'\b(?:total|together|combined|altogether|collectively|both|in all|sum)\b'
-_VERB = r'(?:has|have|had|is|are|was|were|got|gets|received|receives|sent|sends|sold|sells|costs?|weighs?|owns?|holds?|contain[s]?|deposited|drove|read|reads|did|does|harvested)'
+_VERB = r'(?:has|have|had|is|are|was|were|got|gets|received|receives|sent|sends|sold|sells|costs?|weighs?|owns?|holds?|contain[s]?|deposited|drove|read|reads|did|does|harvested|picked)'
 
 
 def _has(pattern, text):
@@ -197,6 +197,10 @@ def _result(answer, working):
 
 
 def _graph(p):
+    if re.search(r'\bneed\b.*\badd\b', p.question):
+        return None
+    if re.search(r'\b(?:share[ds]?|split|divide[ds]?)\b.*\bequally\b', p.question):
+        return None
     if re.search(r'\bnot\b', p.question):
         return None
     # A kinship phrase denotes a distinct owner, and a quantity after "some"
