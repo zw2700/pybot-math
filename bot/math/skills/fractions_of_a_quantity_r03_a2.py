@@ -62,6 +62,10 @@ def _graph(edges, known):
 
 def _comparisons(p, return_values=False):
     """Named affine relations, including fractions and chained comparisons."""
+    # A fractional decrease needs a proportional edge, not a literal delta.
+    if any(n.kind != 'money' and 0 < n.value < 1 and re.match(r'\s+(?:more|less|fewer)\b', p.text[n.end:].lower())
+           for n in p.numbers):
+        return None
     # A combined age anchors the sum, not the last named person's age.
     # The graph reader with total constraints handles this separately.
     if _has(r'\bcombined age of\b', p.body):
@@ -451,6 +455,8 @@ def _coin_share(p):
 
 def _fraction_subsets(p):
     """Reuse subset selection semantics: a fraction and a percent are ratios."""
+    if _has(r'\bdozens?\b', p.body):
+        return None  # The counted whole must first be converted to items.
     component = re.search(r'\bnumber of ([a-z]+) of\b',p.question)
     if component and not _has(r'\b'+re.escape(component.group(1))+r'\b',p.body):
         return None  # Counting components needs a stated conversion.

@@ -46,6 +46,8 @@ _GAIN = r'\b(?:adds?|added|receives?|received|gets?|got|buys?|bought|returned|re
 
 def _stock(p, fs):
     """Literal stock changes followed by scoped proportional consumption."""
+    if _has(r'\b(?:doubled|tripled)\b|\b(?:double|triple) (?:the|that|this|what|as|his|her|their)\b', p.text):
+        return None  # Implicit multiplication is not a literal stock change.
     if not fs or not _has(r'\b(?:left|remaining|currently have|have now|now have|still have)\b', p.question):
         return None
     if _has(r'\b(?:every|per|times|as many|as much|originally|at first)\b', p.text):

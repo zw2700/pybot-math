@@ -113,7 +113,7 @@ def _fraction_ledger(p, rates):
     remainder = _has(r'\b(?:left|remaining|remain|rest|have now|have in the end|at the end)\b', q)
     if not (original or remainder) or not rates:
         return None
-    if _has(r'\b(?:as many|as much|times|twice|per|each|every|age|older|younger)\b', text):
+    if _has(r'\b(?:as many|as much|times|twice|thrice|doubled|tripled|per|each|every|age|older|younger)\b', text):
         return None
     amounts = [n for n in ns if n not in rates]
     if not amounts or len(amounts) > 4:
@@ -137,6 +137,8 @@ def _fraction_ledger(p, rates):
             return None
         if _has(r'\b(?:more|less|than|added)\b', clause):
             return None
+    if _has(r'\b(?:double|triple) (?:the|that|this|what|as|his|her|their)\b', text):
+        return None
     # Stock = a * initial + b. Literal deltas are tracked independently.
     a, b = Fraction(1), Fraction(0)
     start_value = None
@@ -198,6 +200,8 @@ def _fraction_ledger(p, rates):
 
 def _share(p, rates):
     """One counted whole/part and one or two explicitly described shares."""
+    if _has(r'\bdozens?\b', p.body):
+        return None  # A dozen count is not the item count.
     if (_has(r'\bbefore the purchase\b',p.body) and
             _has(r'\bafter the purchase\b',p.question)):
         return None
@@ -587,6 +591,8 @@ def _costed_share(p, rates):
 
 def _nested_shares(p, rates):
     """Two shares with an explicitly linked base, forward or inverse."""
+    if _has(r'\b(?:twice|thrice|doubled|tripled)\b|\b(?:double|triple) (?:the|that|this|what|as|his|her|their)\b', p.text):
+        return None  # Another proportional relation must be resolved first.
     if len(rates) != 2 or len(p.numbers) != 3:
         return None
     first, second = rates

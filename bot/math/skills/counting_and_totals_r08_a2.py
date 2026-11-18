@@ -124,6 +124,9 @@ def _ledger(p):
     """One measured stock, with local removal events and noun ellipsis."""
     ns = p.numbers
     text = p.text.lower()
+    # A share multiplies a stock; it is not a literal item withdrawal.
+    if any('/' in n.raw and re.match(r'\s+of\b', text[n.end:]) for n in ns):
+        return None
     if not 2 <= len(ns) <= 7 or any(n.start >= len(p.body) for n in ns):
         return None
     if not _has(r'\b(?:left|remaining|remain|keep|kept|in the end)\b',p.question) or _different_owner(p):
