@@ -463,6 +463,8 @@ def _matching_shortfall(p):
 
 
 def _owner_categories(p):
+    if re.search(r'\btogether have\b.*\b(?:more|less|fewer)\b', p.body):
+        return None  # A joint amount cannot be assigned to one owner.
     """An exact graph whose variables are (owner, object) pairs.
 
     Independent direct counts are retained as anchored variables, so an actor

@@ -9,7 +9,7 @@ from ._number_syntax import _MIXED_PARTS
 _HOW = r'how\s+(?:many|much|long|old|tall|far|big|heavy|wide|high|deep|fast)'
 _MEASURE = (r'(?:percent(?:age)?|total|sum|combined|number|average|grade|score|mark|'
             r'weight|mass|height|length|width|size|angle|lifespan|population|left|remaining|'
-            r'ages?|distance|speed|area|volume|perimeter|intake|duration|rate|ratio|fraction|proportion)')
+            r'ages?|distance|speed|area|volume|perimeter|radius|diameter|circumference|intake|duration|rate|ratio|fraction|proportion)')
 _MONEY = r'(?:price|cost|salary|income|earnings|profit|bill|discount)'
 _COMMAND = (r'(?:calculate|(?:find|determine)\s+'
             r'(?:(?:the|a|an|my|your|her|his|its|our|their)\s+)?'

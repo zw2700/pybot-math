@@ -95,6 +95,18 @@ def _equation_graph(edges, known, total):
 
 
 def _comparisons(p):
+    if re.search(r'\bnext year\b', p.question):
+        return None  # The age reader applies this implicit future shift.
+    from .comparisons_r03_a4 import _UNIT, _UNITS, _singular
+    requested = re.search(r'\b(?:how many|how much|in) (' + _UNIT + r')\b', p.question)
+    if requested:
+        dest = _UNITS[_singular(requested.group(1))]
+        for n in p.numbers:
+            source = re.match(r'\s+(' + _UNIT + r')\b', p.text[n.end:], re.I)
+            if source and _UNITS[_singular(source.group(1).lower())] != dest:
+                return None
+    if re.search(r'\banother set\b', p.body):
+        return None  # The repeated order requires a final multiplication.
     # "3/5 fewer" describes a proportional decrease, not 0.6 items fewer.
     if any('/' in n.raw and 0 < n.value < 1 and
            re.match(r'\s+(?:more|less|fewer)\b', p.text[n.end:], re.I)

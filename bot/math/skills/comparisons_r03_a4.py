@@ -197,6 +197,12 @@ def _result(answer, working):
 
 
 def _graph(p):
+    if re.search(r'\bnext year\b', p.question):
+        return None
+    if re.search(r'\banother set\b', p.body):
+        return None
+    if re.search(r'\bnumber of [a-z]+ to the .+? as (?:it|he|she) did to\b', p.body):
+        return None  # The destination distinguishes the counted categories.
     if re.search(r'\bneed\b.*\badd\b', p.question):
         return None
     if re.search(r'\b(?:share[ds]?|split|divide[ds]?)\b.*\bequally\b', p.question):
@@ -231,6 +237,9 @@ def _graph(p):
     if len(set(measurements)) > 1:
         # This graph has one unit per variable. Conversion is handled by the
         # explicit measured-comparison schema rather than mixing units here.
+        return None
+    requested = re.search(r'\b(?:how many|how much|in) (' + _UNIT + r')\b', p.question)
+    if requested and measurements and _UNITS[_singular(requested.group(1))] != measurements[0]:
         return None
     body = re.sub(r'(?<=[a-z])-(?=[a-z])', ' ', body)
     query = re.sub(r'(?<=[a-z])-(?=[a-z])', ' ', query)

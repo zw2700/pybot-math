@@ -169,6 +169,10 @@ def _linear(equations, nodes):
 
 
 def _chain(p, return_values=False):
+    if re.search(r'\banother set\b', p.body):
+        return None
+    if re.search(r'\bnumber of [a-z]+ to the .+? as (?:it|he|she) did to\b', p.body):
+        return None
     if any('/' in n.raw and 0 < n.value < 1 and
            re.match(r'\s+(?:more|less|fewer)\b', p.text[n.end:], re.I)
            for n in p.numbers):
