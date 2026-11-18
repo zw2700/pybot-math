@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PyBot does math</title>
+<style>
+  @font-face { font-family:"Routed Gothic"; src:url("fonts/routed-gothic.ttf") format("truetype"); }
+  @font-face { font-family:"Letter Gothic"; src:url("fonts/LetterGothicCode-R.ttf") format("truetype"); }
+  @font-face { font-family:"Letter Gothic"; font-weight:700; src:url("fonts/LetterGothicCode-B.ttf") format("truetype"); }
+  /* the swarms landing page's palette and type; one accent, for the module whose reply won */
+  :root { --ink:#000; --paper:#fff; --mute:#5c5c5c; --hair:#e9e9e9; --faint:#d6d6d6; --off:#f4f4f4; --accent:#eb6834;
+          --lead:"Routed Gothic",Helvetica,Arial,sans-serif; --mono:"Letter Gothic",ui-monospace,Menlo,monospace; color-scheme:light; }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:18px/1.55 var(--lead); }
+  .page { min-height:100%; max-width:1400px; margin:0 auto; padding:clamp(16px,3vw,32px) clamp(16px,3vw,32px) 20px;
+          display:flex; flex-direction:column; gap:16px; }
+  header { display:flex; align-items:flex-end; justify-content:space-between; gap:12px 24px; flex-wrap:wrap; }
+  h1 { font:400 clamp(28px,4.2vw,46px)/1.05 var(--lead); letter-spacing:.02em; margin:0; }
+  .sub { font:400 clamp(17px,2vw,22px)/1.3 var(--lead); color:var(--mute); margin:8px 0 0; }
+  #status { flex:1 1 320px; max-width:520px; font:13px/1.4 var(--mono); color:var(--mute); }
+  #status .bar { height:4px; background:var(--off); border:1px solid var(--ink); margin-top:6px; overflow:hidden; }
+  #status .bar i { display:block; height:100%; width:0; background:var(--ink); transition:width .2s; }
+  #status .bar.busy i { width:30%; animation:slide 1.2s ease-in-out infinite; }
+  #status.done { display:none; }  /* shown only while loading, or if loading fails */
+  #status.failed { color:var(--accent); }
+  @keyframes slide { from { transform:translateX(-100%); } to { transform:translateX(340%); } }
+  .grid { flex:1; display:grid; grid-template-columns:minmax(0,5fr) minmax(0,6fr); gap:16px; min-height:0; }
+  .app { border:1px solid var(--ink); display:flex; flex-direction:column; min-height:0; }
+  .chat { height:calc(100dvh - 170px); min-height:420px; }
+  .trace { height:calc(100dvh - 170px); min-height:420px; }
+  #log { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:14px; }
+  .msg { max-width:85%; padding:7px 12px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:17px; }
+  .me { align-self:flex-end; background:var(--ink); color:var(--paper); }
+  .bot { align-self:flex-start; background:var(--off); border:1px solid var(--hair); }
+  .bot.typing { color:var(--mute); }
+  .hint { color:var(--mute); text-align:center; margin:auto 0 0; font-size:16px; }
+  .chips { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:10px 0 auto; }
+  .chips button { font:15px var(--lead); text-transform:none; letter-spacing:0; color:var(--ink); background:var(--paper);
+                  border:1px solid var(--ink); padding:5px 12px; }
+  .chips button:hover { background:var(--off); }
+  form { display:flex; gap:8px; padding:10px 14px; border-top:1px solid var(--ink); }
+  input { flex:1; min-width:0; font:17px var(--lead); color:var(--ink); background:var(--paper); border:1px solid var(--ink); padding:8px 12px; }
+  button { font:700 14px var(--mono); text-transform:uppercase; letter-spacing:.04em; color:var(--paper); background:var(--ink); border:1px solid var(--ink); padding:0 16px; cursor:pointer; }
+  button.ghost { color:var(--ink); background:var(--paper); width:42px; padding:0; font:400 20px var(--lead); }
+  button:disabled, input:disabled { opacity:.45; cursor:default; }
+  input:focus-visible, button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  #why { font:14px/1.5 var(--mono); color:var(--mute); min-height:63px; padding:10px 14px; border-bottom:1px solid var(--hair); }
+  .trace { overflow:hidden; }
+  #why b, #why a { color:var(--ink); font-weight:700; }
+  #why a { text-decoration:underline; text-underline-offset:2px; }
+  #map { flex:1; min-height:0; width:100%; }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 18px; font:13px var(--mono); color:var(--mute); padding:8px 14px 12px; border-top:1px solid var(--hair); }
+  .legend i { display:inline-block; width:16px; height:12px; vertical-align:-1px; margin-right:6px; border:1px solid var(--ink); }
+  .sw-win { background:var(--accent); border-width:2px !important; } .sw-src { background:var(--ink); } .sw-used { background:#8a8a8a; }
+  .sw-prop { background:var(--paper); border-width:2px !important; } .sw-off { background:var(--off); border-color:var(--faint) !important; }
+  .foot { font:13px var(--mono); color:var(--mute); margin:0; } .foot a { color:inherit; }
+  @media (max-width:900px) {
+    .grid { grid-template-columns:minmax(0,1fr); }
+    .chat { height:min(70dvh,560px); min-height:360px; }
+    .trace { height:auto; min-height:0; }
+    #map { flex:none; height:420px; }
+  }
+  @media (max-width:640px) { body { font-size:17px; } .msg { max-width:92%; } #map { height:360px; } }
+  @media (prefers-reduced-motion:reduce) { #status .bar.busy i { animation:none; width:100%; opacity:.3; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div>
+      <h1>PyBot does math</h1>
+      <p class="sub">No weights, no training, just rules. 15.2% on GSM8K, written by Codex agents.</p>
+    </div>
+    <div id="status" role="status" aria-live="polite"><span id="status-text">Starting…</span><div class="bar busy"><i></i></div></div>
+  </header>
+
+  <div class="grid">
+    <section class="app chat" aria-label="Talk to PyBot">
+      <div id="log" aria-live="polite"></div>
+      <form id="f" autocomplete="off">
+        <button type="button" id="reset" class="ghost" title="Start a new conversation" aria-label="New chat">↻</button>
+        <input id="q" maxlength="500" placeholder="Say something to PyBot" aria-label="Message">
+        <button id="send">Send</button>
+      </form>
+    </section>
+
+    <section class="app trace" aria-label="How PyBot made the last reply">
+      <div id="why">Say something to PyBot, then see which of its files made the reply.</div>
+      <div id="map" role="img" aria-label="PyBot's files; the ones used for the last reply are highlighted"></div>
+      <div class="legend">
+        <span><i class="sw-win"></i>module whose reply won</span>
+        <span><i class="sw-src"></i>file holding the reply's text</span>
+        <span><i class="sw-used"></i>files the winner called</span>
+        <span><i class="sw-prop"></i>modules that also proposed a reply</span>
+        <span><i class="sw-off"></i>not used</span>
+      </div>
+    </section>
+  </div>
+
+  <p class="foot">PyBot runs in your browser with <a href="https://pyodide.org" target="_blank" rel="noopener">Pyodide</a>. Code: <a href="https://github.com/zw2700/pybot-math" target="_blank" rel="noopener">github.com/zw2700/pybot-math</a>. Click a file to read it on GitHub. Demo adapted from <a href="https://huggingface.co/spaces/HuggingFaceSwarms/PyBot" target="_blank" rel="noopener">the original PyBot demo</a>.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script>
+const INK = "#000000", PAPER = "#ffffff", OFF = "#f4f4f4", FAINT = "#d6d6d6", USED = "#8a8a8a", WIN = "#eb6834", MONO = "'Letter Gothic', ui-monospace, Menlo, monospace";
+const EXAMPLES = ["Tom has 3 boxes with 12 apples each. He gives away 7 apples. How many apples does he have left?", "A shirt costs $20 and is 25% off. What is the sale price?", "Mia is twice as old as Leo. Leo is 6. How old will Mia be in 4 years?", "A car travels 60 miles per hour for 3 hours. How far does it go?", "Hi, I'm Sam", "Tell me a joke"];
+const $ = (id) => document.getElementById(id);
+const log = $("log"), q = $("q"), send = $("send"), why = $("why"), statusBox = $("status"), statusText = $("status-text"), bar = statusBox.querySelector(".bar");
+
+// ---- the bot, in a Web Worker ----
+const worker = new Worker("worker.js", {type: "module"});
+// The worker script itself failed (e.g. the Pyodide CDN is blocked): report it like a load error.
+worker.onerror = (e) => { e.preventDefault(); worker.onmessage({data: {type: "error", message: e.message || "the Python runtime could not be downloaded"}}); };
+let botReady = false, nextId = 0, turn = 0, pending = null;  // pending: {id, bubble, mine}
+const mb = (n) => (n / 1e6).toFixed(1);
+function setStatus(text, fraction) {
+  statusText.textContent = text;
+  bar.classList.toggle("busy", fraction == null);
+  bar.querySelector("i").style.width = fraction == null ? "" : `${Math.round(fraction * 100)}%`;
+}
+worker.onmessage = ({data: m}) => {
+  if (m.type === "progress") {
+    if (m.stage === "runtime") setStatus("Downloading Python (Pyodide) and PyBot…");
+    else if (m.stage === "cached") setStatus("Downloading Python (Pyodide)… PyBot is cached in your browser");
+    else if (m.stage === "download") setStatus(`Downloading PyBot · ${mb(m.loaded)}${m.total ? ` / ${mb(m.total)}` : ""} MB`, m.total ? m.loaded / m.total : null);
+    else if (m.stage === "import") setStatus(`Loading PyBot's ${TREE ? TREE.files.length : ""} Python files…`);
+  } else if (m.type === "ready") {
+    botReady = true; statusBox.classList.add("done");
+    setStatus("Ready");
+    if (!pending) { q.disabled = send.disabled = false; q.placeholder = "Say something to PyBot"; }
+  } else if (m.type === "reply") {
+    if (!pending || m.id !== pending.id) return;
+    const {bubble, mine} = pending; pending = null;
+    if (mine === turn) {
+      bubble.textContent = m.reply; bubble.classList.remove("typing");
+      last = m; why.innerHTML = explain(m); draw();
+    }
+    done();
+  } else if (m.type === "error") {
+    if (m.id == null) {  // loading failed
+      statusBox.classList.add("failed"); setStatus(`PyBot could not start: ${m.message}`, 0);
+      if (pending) { pending.bubble.textContent = "PyBot could not start. Reload the page to try again."; pending.bubble.classList.remove("typing"); pending = null; }
+      q.disabled = send.disabled = true; return;
+    }
+    if (pending && m.id === pending.id) { pending.bubble.textContent = "PyBot could not answer that. Try another line."; pending.bubble.classList.remove("typing"); pending = null; }
+    done();
+  }
+};
+function done() { q.disabled = send.disabled = false; q.focus({preventScroll:true}); log.scrollTop = log.scrollHeight; }
+
+// ---- the file map ----
+let TREE = null, dirs, ids, labels, parents, values, last = null;  // last: the last reply's trace
+// A file on GitHub at the bot's commit, optionally at a line or a range of lines.
+const url = (p, from, to) => `${TREE.url}/blob/${TREE.ref}/${p}` + (from ? `#L${from}` + (to && to !== from ? `-L${to}` : "") : "");
+const fmt = (n) => n.toLocaleString("en-US");
+const span = (from, to) => (to && to !== from ? `lines ${fmt(from)}–${fmt(to)}` : `line ${fmt(from)}`);
+// Where a click on a file should land for the last reply: the reply's text, the winner's respond(), or the first
+// function the winner ran in that file. [from, to, what] or null for the whole file.
+function target(id) {
+  if (!last) return null;
+  if (id === last.source && last.source_line) return [last.source_line, last.source_line, "the reply's text"];
+  if (last.respond && id === last.respond[0] && id === `bot/modules/${last.module}.py`) return [last.respond[1], last.respond[2], "respond()"];
+  const first = (last.calls || {})[id]?.[0];
+  return first ? [first[0], first[1], `${first[2].split(".").pop()}()`] : null;
+}
+function roleOf(id) {
+  if (!last || dirs.has(id)) return null;
+  const mod = (m) => `bot/modules/${m}.py`;
+  if (last.module && id === mod(last.module)) return "won";
+  if (id === last.source) return "text";
+  if (last.files.includes(id)) return "used";
+  if (last.candidates.some((m) => mod(m) === id)) return "proposed";
+  return "off";
+}
+function draw() {
+  if (!TREE || !window.Plotly) return;
+  const roles = ids.map(roleOf);
+  const colors = ids.map((id, i) => dirs.has(id) ? PAPER : !last ? OFF : {won: WIN, text: INK, used: USED, proposed: PAPER, off: OFF}[roles[i]]);
+  const widths = roles.map((r) => (r === "won" || r === "proposed" ? 3 : 1));
+  const lines = ids.map((id, i) => (dirs.has(id) ? INK : roles[i] === "won" || roles[i] === "proposed" || roles[i] === "text" ? INK : roles[i] === "used" ? PAPER : FAINT));
+  const hover = roles.map((r, i) => {
+    const base = {won: "won: its reply was used", text: "holds the reply's text", used: "called by the winner",
+      proposed: "also proposed a reply", off: "not used for this reply"}[r] || "";
+    const t = r && r !== "off" && r !== "proposed" ? target(ids[i]) : null;
+    return t ? `${base}<br>click: ${t[2]}, ${span(t[0], t[1])}` : base;
+  });
+  Plotly.react("map", [{type:"treemap", ids, labels, parents, values, branchvalues:"total", maxdepth:3,
+    marker:{colors, line:{color:lines, width:widths}}, customdata:hover,
+    pathbar:{visible:true, thickness:22, textfont:{family:MONO, size:12, color:INK}},
+    texttemplate:"%{label}", textfont:{family:MONO, size:12},
+    hovertemplate:"<b>%{id}</b><br>%{value:,} lines<br>%{customdata}<extra></extra>"}],
+    {margin:{l:0, r:0, t:26, b:0}, paper_bgcolor:PAPER, font:{family:MONO, color:INK},
+     hoverlabel:{bgcolor:PAPER, bordercolor:INK, font:{family:MONO, size:13, color:INK}}},
+    {responsive:true, displaylogo:false, displayModeBar:false})
+    .then(() => Plotly.Plots.resize("map"));  // the trace line above may have changed height
+}
+fetch("tree.json").then((r) => r.json()).then((tree) => {
+  TREE = tree;
+  dirs = new Map();
+  for (const [p, n] of TREE.files) { const parts = p.split("/"); for (let i = 1; i < parts.length; i++) { const d = parts.slice(0, i).join("/"); dirs.set(d, (dirs.get(d) || 0) + n); } }
+  ids = [...dirs.keys(), ...TREE.files.map(([p]) => p)];
+  labels = ids.map((id) => (dirs.has(id) ? id.split("/").pop() + "/" : id.split("/").pop()));
+  parents = ids.map((id) => (id.includes("/") ? id.slice(0, id.lastIndexOf("/")) : ""));
+  values = [...dirs.values(), ...TREE.files.map(([, n]) => n)];
+  draw();
+  $("map").on("plotly_treemapclick", (ev) => {
+    const id = ev.points[0].id;
+    if (dirs.has(id)) return;
+    const t = target(id);
+    window.open(t ? url(id, t[0], t[1]) : url(id), "_blank", "noopener");
+    return false;
+  });
+});
+
+// ---- the chat ----
+const add = (cls, text) => { const p = document.createElement("div"); p.className = "msg " + cls; p.textContent = text; log.appendChild(p); log.scrollTop = log.scrollHeight; return p; };
+function explain(t) {
+  const ms = ` · ${t.ms < 1000 ? `${t.ms} ms` : `${(t.ms / 1000).toFixed(1)} s`}`;
+  if (!t.module) return "No module had a reply, so PyBot fell back to its default line." + ms;
+  const others = t.candidates.filter((m) => m !== t.module);
+  const link = (text, p, from, to) => `<a href="${url(p, from, to)}" target="_blank" rel="noopener">${text}</a>`;
+  const winner = t.respond ? link(t.module, t.respond[0], t.respond[1], t.respond[2]) : `<b>${t.module}</b>`;
+  const where = t.source && (t.source_line ? link(`${t.source.replace("bot/", "")}, line ${fmt(t.source_line)}`, t.source, t.source_line)
+    : link(t.source.replace("bot/", ""), t.source));
+  return `${winner} won${others.length ? ` over ${others.map((m) => `<b>${m}</b>`).join(", ")}` : " (the only module with a reply)"}`
+    + ` · it called <b>${t.files.length}</b> files` + (where ? ` · the reply's text is in ${where}` : "") + ms;
+}
+function welcome(text) {
+  log.innerHTML = "";
+  const hint = document.createElement("p"); hint.className = "hint"; hint.textContent = text; log.appendChild(hint);
+  const chips = document.createElement("div"); chips.className = "chips";
+  for (const ex of EXAMPLES) {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = ex;
+    b.addEventListener("click", () => { if (!pending) { q.value = ex; $("f").requestSubmit(); } });
+    chips.appendChild(b);
+  }
+  log.appendChild(chips);
+}
+function ask(text) {
+  log.querySelectorAll(".hint, .chips").forEach((el) => el.remove());
+  add("me", text); q.value = ""; q.disabled = send.disabled = true;
+  const bubble = add("bot typing", botReady ? "…" : "… (PyBot is still loading)");
+  pending = {id: ++nextId, bubble, mine: turn};
+  worker.postMessage({type: "turn", id: pending.id, text});
+}
+$("f").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = q.value.trim(); if (!text || pending || statusBox.classList.contains("failed")) return;
+  ask(text);
+});
+$("reset").addEventListener("click", () => {
+  turn++; pending = null; last = null; draw();
+  why.textContent = "New conversation. PyBot has forgotten everything you said.";
+  worker.postMessage({type: "reset"});
+  welcome("New conversation. Say something, or try one of these:");
+  q.value = ""; q.disabled = send.disabled = false; q.focus({preventScroll:true});
+});
+welcome("Say something to PyBot, or try one of these:");
+q.focus({preventScroll:true});
+</script>
+</body>
+</html>
