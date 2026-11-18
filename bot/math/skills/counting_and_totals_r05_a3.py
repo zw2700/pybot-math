@@ -53,6 +53,9 @@ _TIME = {'second', 'minute', 'hour', 'day', 'week', 'month', 'year'}
 def _rate_chain(p):
     """A single dimensional chain, including explicit repetitions per period."""
     text = p.text.lower()
+    if (_has(r'\b(?:each|every) day\b', p.body)
+            and _has(r'\bfor (?:a|an) (?:second|minute|hour)\b', p.body)):
+        return None  # A daily activity window is not a full elapsed day.
     if _has(r'\b(?:than|more|less|fewer|half|twice|left|remaining|lost|gave|'
             r'percent|except|another|including|back|round|weekdays?|weekends?)\b', text):
         return None
