@@ -62,6 +62,10 @@ def _asked(p):
 
 def _proportion(p):
     """An observed input/output pair scaled to another amount of either unit."""
+    # A daily amount and consecutive durations form a schedule, not an
+    # observed input/output pair (hours per day is not hours per month).
+    if _has(r'\b(?:each|every|per|a) day\b', p.body):
+        return None
     if _has(r'\bsame (?:size|job|work)\b', p.text.lower()) and _has(r'how long', p.question):
         return None
     ns = p.numbers
@@ -111,7 +115,7 @@ def _grouped_total(p):
         return None  # A dozen is a conversion, not an individual count.
     if not 2 <= len(ns) <= 5 or any(n.kind != 'number' for n in ns):
         return None
-    if _has(r'\b(?:more|less|fewer|than|left|remaining|except|not|lost|loses|sold|'
+    if _has(r'\b(?:more|less|fewer|than|left|remain|remaining|except|not|lost|loses|sold|'
             r'half|twice|double|average|percent|cost|costs|price)\b', text):
         return None
     units = [_unit(p, n) for n in ns]

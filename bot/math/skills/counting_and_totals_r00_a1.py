@@ -514,6 +514,8 @@ def _different_owner(p):
 def _ledger(p):
     """A single stock, with explicit additions/removals and no rates/relations."""
     text = p.text.lower()
+    if _has(r'\b(?:refill|fill (?:up )?(?:the |an? )?(?:entire )?tank)\b', p.question):
+        return None  # Capacity minus remaining stock is a separate calculation.
     if _has(r'\b(?:get|gets|got) off\b', p.body):
         return None  # Postposed boarding/alighting needs a local event reader.
     # A final stated whole after a list of categories overlaps the earlier

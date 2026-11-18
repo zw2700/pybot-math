@@ -253,7 +253,7 @@ def _groups(p):
     other = [i for i in range(len(ns)) if i != ri and i not in counts]
     # Group counts must be a simple disjoint list; changing the number of
     # groups first is a different schema.
-    if len(counts) > 1 and _has(r'\b(?:lost|sold|gave|ate|remaining|left|more)\b', text):
+    if len(counts) > 1 and _has(r'\b(?:lose|loses|lost|sold|gave|ate|remaining|left|leaves|more)\b', text):
         return None
     count = sum((ns[i].value for i in counts), Fraction(0))
     value = count*ns[ri].value
@@ -652,7 +652,17 @@ def _category_ratio_total(p):
     if not (_has(r'\btotal\b', total_clause+total_suffix) or _has(r'\bsome of them turned out to be\b', text)):
         return None
     asked = _asked(p)
-    if asked == _head(first):
+    # Categories can share a noun head ("phone chargers" and "laptop
+    # chargers"). Resolve their distinguishing words before choosing a side.
+    if _head(first) == _head(second):
+        common = set(first.split()) & set(second.split())
+        mentions = [any(re.search(r'\b'+re.escape(w)+r'\b', p.question)
+                        for w in set(label.split())-common)
+                    for label in (first, second)]
+        if mentions.count(True) != 1:
+            return None
+        factor = ns[ri].value if mentions[0] else Fraction(1)
+    elif asked == _head(first):
         factor = ns[ri].value
     elif asked == _head(second):
         factor = Fraction(1)

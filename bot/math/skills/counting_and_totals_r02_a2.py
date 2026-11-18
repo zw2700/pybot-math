@@ -101,6 +101,8 @@ def _grouped(p):
     """Join count -> per-group quantities, with dimensional time conversions."""
     ns = p.numbers
     text = p.text.lower()
+    if _has(r'\bother (?:days|weeks|months|hours)\b', p.question):
+        return None  # A stated whole minus completed groups needs subtraction.
     if not 3 <= len(ns) <= 8 or any(n.kind != 'number' for n in ns):
         return None
     if _has(r'\b(?:than|fewer|half|twice|double|percent|average|ratio|except|not)\b', text):
@@ -178,6 +180,10 @@ def _grouped(p):
     consumed = {ci for ci, factor in parents.values()}
     roots = [i for i in range(len(ns)) if i not in consumed]
     if not roots:
+        return None
+    # A remaining duration in a rate's denominator needs that same rate.
+    # Converting bare days to hours would count the whole day as work.
+    if any(i not in parents and units[i] in rates.values() for i in roots):
         return None
     seen = set()
 

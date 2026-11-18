@@ -293,4 +293,24 @@ def _comparisons(p):
 
 
 def solve(problem):
+    # Numerical offsets and known values must use the same time unit.
+    # Normalize explicit month/year measurements before building equations.
+    text = problem.text
+    measures = []
+    for n in problem.numbers:
+        m = re.match(r'\s+(?:(more|fewer|less) )?(months?|years?)\b', text[n.end:], re.I)
+        if m:
+            measures.append((n, m))
+    if (len(measures) == len(problem.numbers)
+            and re.search(r'\bmonths\b', problem.question)
+            and len({m.group(2).lower().rstrip('s') for n, m in measures}) > 1):
+        from ..problem import Problem
+        for n, m in reversed(measures):
+            value = n.value * (12 if m.group(2).lower().startswith('year') else 1)
+            relation = ' ' + m.group(1) if m.group(1) else ''
+            text = text[:n.start] + format_number(value) + relation + ' months' + text[n.end+m.end():]
+        converted = Problem.read(text)
+        if converted is None:
+            return None
+        return _comparisons(converted)
     return _comparisons(problem)
