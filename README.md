@@ -1,8 +1,8 @@
 <p align="center"><img src="assets/banner.png" alt="PyBot: no weights, no training, just rules" width="100%"></p>
 
 <div align="center">
-  <a href="https://huggingface.co/spaces/HuggingFaceSwarms/PyBot" target="_blank">
-    <img alt="Hugging Face Space: PyBot demo" src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Demo-ffc107?color=ffc107&logoColor=white" />
+  <a href="https://zw2700.github.io/pybot-math/" target="_blank">
+    <img alt="PyBot does math: browser demo" src="https://img.shields.io/badge/Demo-try%20it%20in%20your%20browser-eb6834" />
   </a>
 </div>
 
@@ -37,6 +37,12 @@ The math lives in `bot/math/` (number reading, problem parsing and one file of r
 and `bot/modules/word_problem.py`. The loop that wrote it, with its gates and the agents'
 brief, is in [`harness/`](harness/). Each `rNN-aK` commit is one agent's accepted patch.
 
+**[Try it in your browser](https://zw2700.github.io/pybot-math/)**: the whole bot runs locally with
+Pyodide, and each reply shows which file produced it (for math, the skill file under
+`bot/math/skills/`). The demo is adapted from the original
+[PyBot Space](https://huggingface.co/spaces/HuggingFaceSwarms/PyBot); its source is on the
+[`gh-pages`](https://github.com/zw2700/pybot-math/tree/gh-pages) branch.
+
 The original PyBot README follows.
 
 ---
@@ -53,7 +59,7 @@ The result is PyBot: around 640k lines of code that can answer everyday question
 
 ## Try it out
 
-Try PyBot in your terminal below, or in the browser on [Hugging Face](https://huggingface.co/spaces/HuggingFaceSwarms/PyBot), where each reply shows which of PyBot’s modules produced it.
+Try PyBot in your terminal below, or in the browser ([this fork's demo](https://zw2700.github.io/pybot-math/), or the original on [Hugging Face](https://huggingface.co/spaces/HuggingFaceSwarms/PyBot)), where each reply shows which of PyBot’s modules produced it.
 
 PyBot needs Python 3.8 or newer and nothing else: no packages to install and no model to download.
 
