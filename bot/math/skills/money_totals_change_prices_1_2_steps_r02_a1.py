@@ -121,6 +121,11 @@ def _denominator(text, n, previous_end):
 
 def _purchases(p, ns):
     text = p.text.lower()
+    # A recurring price increase is a progression, not a second purchase.
+    if _has(r'\bincreases? (?:yearly|annually|each year|every year)\b', text):
+        return None
+    if _has(r'\bsave\b', p.question) and _has(r'\b(?:gallon|pound|kilogram|liter)\b', text):
+        return None  # Equivalent bulk sizes require conversion before comparison.
     # An explicitly stated basket total is an equation, not another purchase.
     # Leave missing-item prices to a reader that models that equation.
     if (_has(r'\b(?:price|cost)\b', p.question)

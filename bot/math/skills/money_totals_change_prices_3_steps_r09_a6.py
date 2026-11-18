@@ -105,6 +105,14 @@ def _price(p, ns, n):
 def _basket(p, ns):
     """A basket with explicit counts and prices, plus cash or fixed fees."""
     t, q = p.text.lower(), p.question
+    if _has(r'\bsave\b', q) and _has(r'\b(?:gallon|pound|kilogram|liter)\b', t):
+        return None
+    if (_has(r'\bweek\b', q)
+            and _has(r'\b(?:per day|a day|every (?:day|morning|evening|night)|each day)\b', p.body)):
+        return None  # A daily basket needs an outer weekly multiplier.
+    # Counts in dozens must be converted before applying per-item prices.
+    if any(c.kind != 'money' and _has(r'^\s+dozen\b', t[c.end:]) for c in ns):
+        return None
     if _has(r'\b(?:lose|lost)\b',q):
         return None
     if _has(r'\b(?:percent|times|twice|thrice|double|triple|half|quarter|ratio|tax|discount|coupon|free|average|equally|more|less)\b', p.body):

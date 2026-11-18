@@ -20,6 +20,8 @@ from ._money_common import (
 
 def _basket(p, ns):
     t = p.text.lower()
+    if _has(r'\bincreases? (?:yearly|annually|each year|every year)\b', t):
+        return None
     if (_has(r'\bexpenses\b', p.question)
             or _has(r'\bingredients\b', p.body) and _has(r'\bmake\b', p.body)):
         return None  # Production costs and receipts need a unit-margin ledger.
