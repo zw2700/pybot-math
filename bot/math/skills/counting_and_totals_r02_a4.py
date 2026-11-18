@@ -230,8 +230,22 @@ def _groups(p):
         else:
             return None
     if len(relations) > 1:
+        # Distinct modified group labels have distinct contents.  Collapsing
+        # all of them to a noun head would cross-multiply their inventories.
+        labels = []
+        for ri, _ in relations:
+            before = text[ns[ri-1].end if ri else 0:ns[ri].start]
+            m = re.search(r'\b(?:each|every) ([a-z ]+?) (?:has|have|holds?|contains?|needs?|requires?|produces?|makes?|uses?)\s*$', before)
+            if m:
+                labels.append(m.group(1).strip())
+        if len(set(labels)) > 1:
+            return None
         count_sets = {cs for _, cs in relations}
         rate_ids = {ri for ri, _ in relations}
+        if len(rate_ids)>1 and all(ri>0 and _has(
+                r'^\s+[a-z -]+(?: of [a-z -]+)? with\s*$',
+                text[ns[ri-1].end:ns[ri].start]) for ri in rate_ids):
+            return None  # Each local count has its own explicitly paired size.
         # Two adjacent count/content pairs have independent sizes even when
         # their container nouns coincide. Do not cross-multiply the pairs.
         if len(ns) == 4 and ((rate_ids == {1, 3} and count_sets == {(0, 2)})
