@@ -86,6 +86,9 @@ def _proportion(p):
         numerator, denominator, result_unit = b.value, a.value, units[1]
     else:
         return None
+    if (_has(r'\bworking together\b', p.text.lower()) and units[2] == units[0]
+            and result_unit in ('minute', 'hour', 'day', 'second')):
+        return None  # Fixed work takes less time with more workers.
     asked = _asked(p)
     if asked != result_unit and not (p.question.startswith('how long') and result_unit in
                                     ('minute', 'hour', 'day', 'second')):
@@ -107,6 +110,8 @@ def _grouped_total(p):
     """Reduce explicit per-group relations, then sum disjoint output counts."""
     ns = p.numbers
     text = p.text.lower()
+    if len(ns) == 2 and _has(r'\bper day\b',p.body) and _has(r'\bweek\b',p.question):
+        return None  # A per-member daily quantity needs the duration too.
     if _has(r'\bdozen\b', text):
         return None  # A dozen is a conversion, not an individual count.
     if not 2 <= len(ns) <= 5 or any(n.kind != 'number' for n in ns):

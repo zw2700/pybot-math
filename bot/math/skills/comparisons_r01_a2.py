@@ -191,6 +191,8 @@ def _comparisons(p):
         if not _mentions(before, names) and subject and (not before.strip() or re.match(r"\s*(?:it|he|she|that(?:'s)?)\b", before)):
             before = subject + ' ' + before
         left_names, right_names = _mentions(before, names), _mentions(after, names)
+        if len(set(right_names)) > 1 and re.search(r'\b(?:combined|together|sum)\b', after):
+            return None  # A sum of owners needs a multi-owner equation.
         if left_names and right_names:
             left, right = left_names[-1], right_names[0]
             owning = re.search(r"([a-z]+)(?:'s)? (?:has|have|had|ate|picked|bought|runs|is)\b", after)
@@ -208,6 +210,10 @@ def _comparisons(p):
             if category and not right_names:
                 left = _noun(category.group(1))
                 right = _noun(re.sub(r'^(?:he|she|they) (?:did|does|do|bought|has|have) ', '', after))
+            class_owners = set(re.findall(r'(?:^|[.;]\s*)(?:a|an|the) ([a-z]+) has\b', body))
+            owner = re.fullmatch(r'\s*(?:a|an|the) ([a-z]+) has\s*', before)
+            if owner and owner.group(1) in class_owners and right in class_owners and left not in class_owners:
+                left = owner.group(1)
         elif left_names and re.search(r'\b(?:he|she|him|her)\b', after):
             alternatives = [n for n in _mentions(clause, names) if n != left_names[-1]]
             if not alternatives:

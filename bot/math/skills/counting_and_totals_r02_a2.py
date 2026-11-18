@@ -182,6 +182,11 @@ def _grouped(p):
     roots = [i for i in range(len(ns)) if i not in consumed]
     if not roots:
         return None
+    if (_has(r'\bweek\b', text) and list(rates.values()).count('day') >= 2
+            and any(i not in parents and re.search(
+                r'\b(?:drinks?|eats?|reads?|uses?)\s*$',
+                text[ns[i-1].end if i else 0:ns[i].start]) for i in roots)):
+        return None  # A sibling's omitted daily rate is not loose stock.
     # A remaining duration in a rate's denominator needs that same rate.
     # Converting bare days to hours would count the whole day as work.
     if any(i not in parents and units[i] in rates.values() for i in roots):

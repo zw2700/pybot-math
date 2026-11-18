@@ -56,6 +56,8 @@ def _rate_chain(p):
     if (_has(r'\b(?:each|every) day\b', p.body)
             and _has(r'\bfor (?:a|an) (?:second|minute|hour)\b', p.body)):
         return None  # A daily activity window is not a full elapsed day.
+    if len(p.numbers) == 2 and _has(r'\bper day\b',p.body) and _has(r'\bweek\b',p.question):
+        return None  # An implicit week cannot cancel a member denominator.
     if _has(r'\b(?:than|more|less|fewer|half|twice|left|remaining|lost|gave|'
             r'percent|except|another|including|back|round|weekdays?|weekends?)\b', text):
         return None
@@ -150,6 +152,8 @@ def _rate_chain(p):
 def _paired_groups(p):
     """Two independently described groups, queried as a sum or difference."""
     text = p.text.lower()
+    if _has(r'\bevery day\b',p.body) and _has(r'\bweek\b',p.question):
+        return None  # A repeated daily route still needs its weekly schedule.
     if _has(r'\b(?:half|twice|percent|ratio|except|remaining|left)\b', text):
         return None
     ns = list(p.numbers)

@@ -336,6 +336,8 @@ def _measure(t):
 
 def _converted_measurements(p):
     """Add independent measurements, or divide a recipe's mass by servings."""
+    if has(r'\bfor every\b',p.body):
+        return None  # These are rates of time per time, not loose durations.
     ns = p.numbers
     ts = tails(p)
     asked = re.search(r'\b(inches|feet|yards|miles|grams|kilograms|ounces|pounds|seconds|minutes|hours)\b',p.question)

@@ -384,6 +384,7 @@ def _group_rate(p):
     sentence = _sentence(text, numbers[oi].start, numbers[oi].end)
     if (oi < ri and oi != ci and _unit(text, numbers[oi]) == _unit(text, numbers[ci])
             and _has(r'\b(?:sold|bought|made|collected)\b', text)
+            and not _has(r'\b(?:gave|gives?|lost|loses?|removed|away)\b', p.body)
             and not _has(r'\b(?:left|more|remaining|not)\b', p.question)):
         return _result((count+other)*rate, '({} + {}) x {}'.format(_f(count), _f(other), _f(rate)))
     if _has(r'\b(?:more|not (?:be )?placed|not (?:be )?packed)\b', p.question) and _has(
@@ -521,6 +522,8 @@ def _different_owner(p):
 
 def _ledger(p):
     """A single stock, with explicit additions/removals and no rates/relations."""
+    if _has(r'\bat the start\b|\b(?:did|does) [a-z]+ start\b', p.question):
+        return None  # Recovering an initial stock reverses the event signs.
     text = p.text.lower()
     if _has(r'\b(?:dozens?|pairs?)\b', text):
         return None  # Group counts need conversion to individual items.

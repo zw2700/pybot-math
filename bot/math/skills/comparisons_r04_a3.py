@@ -356,6 +356,14 @@ def _chain(p, return_values=False):
             right = next(iter(candidates))
         else:
             left, right = _cat(middle), _cat(after)
+            # In "a container has N more items than another container",
+            # the subject owns the count. The repeated item noun is the unit.
+            # Establish both owners as explicit subjects elsewhere in the
+            # narrative before preferring them over category comparisons.
+            class_owners = set(re.findall(r'(?:^|[.;]\s*)(?:a|an|the) ([a-z]+) has\b', body))
+            owner = re.fullmatch(r'\s*(?:a|an|the) ([a-z]+) has\s*', before)
+            if not mult and owner and owner.group(1) in class_owners and right in class_owners and left not in class_owners:
+                left = owner.group(1)
             if _has(r'\band\b.*\bcombined\b', after):
                 components = re.split(r'\s+and\s+', re.sub(r'\s+combined\b.*$', '', after))
                 right_group = [_cat(c) for c in components]

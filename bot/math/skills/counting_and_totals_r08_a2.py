@@ -88,6 +88,8 @@ def _nested_groups(p):
     """Read explicit container/content edges, including singular denominators."""
     ns = p.numbers
     text = p.text.lower()
+    if len(ns) == 2 and _has(r'\bper day\b',p.body) and _has(r'\bweek\b',p.question):
+        return None  # Nested contents alone do not account for a weekly rate.
     if not 2 <= len(ns) <= 6 or _has(r'\b(?:more|less|fewer|than|left|remaining|half|twice|except|lost|sold|gave|average|ratio|percent|another)\b',text):
         return None
     tails = _tails(p)

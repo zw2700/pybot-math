@@ -180,6 +180,10 @@ def _groups(p):
         return None  # These queries compare products rather than sum them.
     ns = p.numbers
     text = p.text.lower()
+    if _has(r'\bdozens?\b', text):
+        return None  # Counts of dozens need conversion before grouping.
+    if len(ns) == 2 and _has(r'\bper day\b',p.body) and _has(r'\bweek\b',p.question):
+        return None  # Both member and time denominators must be applied.
     if not 2 <= len(ns) <= 6 or any(n.kind != 'number' for n in ns):
         return None
     if _has(r'\b(?:than|twice|half|double|percent|average|ratio|except|not|'
@@ -230,7 +234,8 @@ def _groups(p):
         rate_ids = {ri for ri, _ in relations}
         # Two adjacent count/content pairs have independent sizes even when
         # their container nouns coincide. Do not cross-multiply the pairs.
-        if len(ns) == 4 and rate_ids == {1, 3} and count_sets == {(0, 2)}:
+        if len(ns) == 4 and ((rate_ids == {1, 3} and count_sets == {(0, 2)})
+                            or (rate_ids == {0, 2} and count_sets == {(1, 3)})):
             return None
         if len(count_sets) != 1 or _has(r'\b(?:left|remaining|remain|more)\b', p.question):
             return None
@@ -694,6 +699,8 @@ def _convert(value, source, target):
 
 def _measurement_sum(p):
     """Total or arithmetic mean of explicitly stated measurements."""
+    if _has(r'\breturns?\b.*\bthen goes back\b',p.body):
+        return None  # A retraced leg is counted twice, not once.
     ns = p.numbers
     if not 2 <= len(ns) <= 8 or any(n.start >= len(p.body) for n in ns):
         return None
