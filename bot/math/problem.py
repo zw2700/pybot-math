@@ -6,7 +6,7 @@ from .numbers import read_numbers
 
 
 ASK = re.compile(
-    r'\b(?:how (?:many|much|long|old|tall|far)|what (?:percent(?:age)?|is|are|was|will|would|does|did|do|grade|score|mark|number)|'
+    r'\b(?:how (?:many|much|long|old|tall|far|big)|what (?:total|the total|percent(?:age)?|is|are|was|will|would|does|did|do|grade|score|mark|number)|'
     r"what's|what (?:distance|speed|year|size)|calculate|determine (?:the |her |his |their )?(?:annual |yearly |total )?(?:salary|earnings|cost|price)|find the (?:total|number|combined|value))\b", re.I)
 
 
@@ -29,9 +29,9 @@ class Problem:
         # Require a quantitative question and a narrative with multiple quantities.
         # In particular, a numerical personal statement is never enough to trigger.
         question = text[ask.start():]
-        quantitative = re.match(r'how (?:many|much|long|old|tall|far)|what percent(?:age)?|calculate|find the', question, re.I)
+        quantitative = re.match(r'how (?:many|much|long|old|tall|far|big)|what percent(?:age)?|calculate|find the', question, re.I)
         quantitative = quantitative or re.search(
-            r'\b(?:percent(?:age)?|total|sum|combined|number|average|grade|score|mark|weight|height|length|width|size|angle|lifespan|population|left|remaining|age|ages|distance|speed|area|volume|perimeter)\b',
+            r'\b(?:percent(?:age)?|total|sum|combined|number|average|grade|score|mark|weight|height|length|width|size|angle|lifespan|population|left|remaining|age|ages|distance|speed|area|volume|perimeter|net calorie intake)\b',
             question, re.I)
         quantitative = quantitative or re.search(r'^what year\b.*\bborn\b', question, re.I)
         # A percentage price relation is quantitative even when phrased as

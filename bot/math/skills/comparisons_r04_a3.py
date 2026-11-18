@@ -169,6 +169,10 @@ def _linear(equations, nodes):
 
 
 def _chain(p, return_values=False):
+    if any('/' in n.raw and 0 < n.value < 1 and
+           re.match(r'\s+(?:more|less|fewer)\b', p.text[n.end:], re.I)
+           for n in p.numbers):
+        return None
     if re.search(r'\bneed\b.*\badd\b', p.question):
         return None
     if re.search(r'\b(?:share[ds]?|split|divide[ds]?)\b.*\bequally\b', p.question):

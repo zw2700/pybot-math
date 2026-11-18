@@ -95,6 +95,11 @@ def _equation_graph(edges, known, total):
 
 
 def _comparisons(p):
+    # "3/5 fewer" describes a proportional decrease, not 0.6 items fewer.
+    if any('/' in n.raw and 0 < n.value < 1 and
+           re.match(r'\s+(?:more|less|fewer)\b', p.text[n.end:], re.I)
+           for n in p.numbers):
+        return None
     if re.search(r'\bneed\b.*\badd\b', p.question):
         return None
     # Calendar periods are separate amounts, even with a single named earner.

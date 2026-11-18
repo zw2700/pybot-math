@@ -230,6 +230,11 @@ def _share(p, rates):
     if len(amounts) != 1 or not 1 <= len(rates) <= 2:
         return None
     text, q = p.text, p.question
+    if any(re.match(r'\s+(?:more|less|fewer)\b', text[r.end:]) for r in rates):
+        return None
+    if (_has(r'\b(?:together|combined)\b', text[:amounts[0].start]) and
+            _has(r'\b(?:distance|amount|number) that [a-z]+ (?:ran|read|has|had|made)\b', p.body)):
+        return None
     if _has(r'\b(?:times|twice|thrice|double|triple|as many|as much|age|older|younger|more than|less than|per|each)\b', text):
         return None
     amount = amounts[0]
@@ -672,6 +677,11 @@ def _grouped_share(p, rates):
     if len(rates) != 1 or len(p.numbers) != 3:
         return None
     r = rates[0]
+    # Multiplying a count by a per-period rate yields an amount, not a time.
+    if p.question.startswith('how long'):
+        return None
+    if _has(r'\bas (?:many|much)\b', p.body):
+        return None
     if _has(r'\b(?:every|each|per)\s*$', p.text[:r.start]):
         return None
     amounts = [n for n in p.numbers if n != r]

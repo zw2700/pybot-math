@@ -225,6 +225,10 @@ def _allocations(p):
     """A stock, explicit allocations of its whole or remainder, and a query."""
     ns = list(p.numbers)
     text = p.text.lower()
+    # A literal addition changes the base of a subsequent share. This reader
+    # treats literal amounts as removals; leave mixed ledgers to another skill.
+    if _has(r'\b(?:adds?|added)\b', text):
+        return None
     # Elapsed-day labels can repeat the described sequence length.
     if ns and ns[-1].start >= len(p.body) and re.match(r'\s+days?\b', text[ns[-1].end:]) and _has(r'\bafter\s*$', text[:ns[-1].start]):
         stages = len([n for n in ns if 0 < n.value < 1 and n.kind != 'money'])
@@ -288,7 +292,7 @@ def _allocations(p):
             if not _has(_REMOVE, before + ' ' + tail):
                 return None
             scope = re.split(r'[.;!?]|\s+and\s+', tail)[0]
-            scoped_remaining = _has(r'\b(?:remaining|remainder|rest|what (?:was|is) left|had left)\b', scope)
+            scoped_remaining = _has(r'\b(?:remaining|remainder|rest|what (?:was|is) left|(?:has|have|had) left)\b', scope)
             scoped_original = _has(r'\b(?:original|initial)\b', scope)
             # Further fractions must explicitly name their scope.
             if last_part is not None and not scoped_remaining and not scoped_original:
@@ -452,6 +456,12 @@ def _fraction_subsets(p):
     fs = [n for n in ns if 0 < n.value < 1 and n.kind != 'money']
     if not fs or _has(r'\b(?:times|as many|as much|that amount|per|each|more|less|than)\b', p.text.lower()):
         return None
+    # A running remainder is a ledger, not a nested category. Likewise a
+    # comparison of two named distances is not a share of their combined total.
+    if _has(r'\b(?:remaining|remainder|(?:has|have|had) left)\b', p.body):
+        return None
+    if _has(r'\b(?:distance|amount|number) that [a-z]+ (?:ran|read|has|had|made)\b', p.body):
+        return None
     if _has(r'\b(?:triples|tripled|doubles|doubled|increases?|increased|decreases?|decreased)\b', p.body):
         return None
     result = _nested(p, ns)
@@ -463,7 +473,9 @@ def _fraction_subsets(p):
     # It must be a share of a collection, not a physical fractional measure.
     if not re.match(r'\s+(?:of|the|were|are|had)\b', p.text[f.end:].lower()):
         return None
-    ratios = [replace(n, kind='percent') if n in fs else n for n in ns]
+    ratios = [replace(n, kind='percent') if n in fs else
+              replace(n, value=n.value*12) if re.match(r'\s+dozens?\b', p.text[n.end:].lower()) else n
+              for n in ns]
     return _single_subset(p, ratios)
 
 

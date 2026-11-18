@@ -31,6 +31,10 @@ def _sentence(text, start, end):
 
 
 def _comparative_total(p):
+    if any('/' in n.raw and 0 < n.value < 1 and
+           re.match(r'\s+(?:more|less|fewer)\b', p.text[n.end:], re.I)
+           for n in p.numbers):
+        return None
     if any(n.kind == 'percent' for n in p.numbers):
         return None  # a relative difference is not an additive count
     if len(p.numbers) != 2 or not (_has(

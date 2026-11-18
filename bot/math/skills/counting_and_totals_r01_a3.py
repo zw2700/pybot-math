@@ -227,6 +227,11 @@ def _inventory(p):
     """One starting inventory, additions/removals, optionally items per survivor."""
     ns = p.numbers
     text = p.text.lower()
+    # A proper fraction followed by a possessive/of-relation is a share of
+    # inventory, rather than a literal count to add or subtract.
+    if any(0 < n.value < 1 and re.match(r'\s+(?:of|his|her|their|the)\b', text[n.end:])
+           for n in ns):
+        return None
     if not 2 <= len(ns) <= 5 or any(n.start >= len(p.body) or n.kind != 'number' for n in ns):
         return None
     if _different_owner(p) or _has(r'\b(?:than|fewer|half|twice|double|average|percent|per|every)\b', text):

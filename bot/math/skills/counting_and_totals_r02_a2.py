@@ -339,6 +339,9 @@ _DEBIT = set('lost loses lose ate eats eat used uses gave gives sold sells took 
 def _ledger(p):
     ns = p.numbers
     text = p.text.lower()
+    if any(0 < n.value < 1 and re.match(r'\s+(?:of|his|her|their|the)\b', text[n.end:])
+           for n in ns):
+        return None
     if not 3 <= len(ns) <= 10 or any(n.kind != 'number' or n.start >= len(p.body) for n in ns):
         return None
     if not _has(r'\b(?:left|remain|remaining|now|have|has)\b', p.question):
