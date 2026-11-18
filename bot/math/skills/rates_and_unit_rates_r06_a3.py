@@ -6,10 +6,10 @@ there are two of them; a per-unit relation or equal allocation is required.
 import re
 from dataclasses import replace
 from fractions import Fraction
-from itertools import product
 
 from ..numbers import format_number
 from . import rates_and_unit_rates_r03_a5 as core
+from ._rates_common import noun_head, dimensional_products, each_subject, whole_count
 
 
 _STOP = core._STOP | set(('over into ate eat eats receive receives got brew brews '
@@ -28,18 +28,9 @@ def _normal(word):
 def _head(text):
     text = re.sub(r'^\s*(?:of\s+)?(?:(?:his|her|their|the)\s+)?', '', text)
     words = re.findall(r'[a-z]+|[^a-z\s-]', text.lstrip(' -'))
-    kept = []
-    words = [w for w in words if w not in ('equal', 'big', 'small', 'single', 'individual', 'best')]
-    for w in words:
-        if w in _STOP or not w.isalpha():
-            break
-        w = _normal(w)
-        kept.append(w)
-        if w in core._MEASURES or w in ('money', 'cent', 'pound'):
-            return w
-        if len(kept) == 4:
-            break
-    return kept[-1] if kept else ''
+    text = ' '.join(w for w in words if w not in ('equal', 'big', 'small', 'single', 'individual', 'best'))
+    return noun_head(text, _STOP, _normal, core._MEASURES | {'money', 'cent', 'pound'},
+                     possessives=False)
 
 
 def _unit(p, n):
@@ -124,11 +115,13 @@ def _denoms(p, ns, us):
         if ds[i] and not re.search(r'\b(?:each|every|per)\b', before+' '+after):
             ds[i] = [d for d in ds[i] if d in _TIME or d in us or d == _asked(p)]
 
-        m = re.search(r'\b(?:each|every)\s+(.+?)\s+(?:(?:will|can)\s+)?(?:provides?|brews?|gets?|receives?|ate|eats?|lasts?|is cut into|cuts?[^.;]*?into|has|contains?)\s*(?:about\s*)?$', before)
-        if m:
-            h = _head(m.group(1))
-            if h:
-                ds[i] = [h]
+        subject = each_subject(before, _normal, _STOP, us)
+        if subject:
+            if re.search(r'\b(?:per|each|every)\b', after):
+                if subject not in ds[i]:
+                    ds[i].append(subject)
+            else:
+                ds[i] = [subject]
         if re.search(r'\beach of (?:them|us) (?:ate|eats?|gets?|receives?)\s*$', before):
             ds[i] = ['person']
         if re.search(r'\beach of (?:his|her|their) friends (?:will )?(?:receive|eat|get)s?\s*$', before):
@@ -176,14 +169,6 @@ def _denoms(p, ns, us):
         m = re.search(r'\bto make (?:a|an) ([a-z]+)\b',after)
         if m:
             ds[i]=[_normal(m.group(1))]
-        # The last each/every subject owns the local rate; an earlier
-        # coordinated subject cannot steal it.
-        each = list(re.finditer(r'\b(?:each|every)\s+', before))
-        if each:
-            local = before[each[-1].end():]
-            m = re.fullmatch(r'([a-z]+(?:[ -]+[a-z]+){0,3}?)\s+(?:(?:will|can)\s+)?(?:provides?|brews?|gets?|got|receives?|ate|eats?|lasts?|is cut into|is topped with|is made up of|has|contains?|needs?|requires?|is|costs?)\s*(?:about\s*)?', local)
-            if m and not local.startswith('of '):
-                ds[i] = [_head(m.group(1))]
         # An explicitly singular producer adds a producer denominator when
         # the question asks how many producers are needed.
         m = re.search(r'\b(?:a|an) ([a-z]+) (?:can )?(?:process|produce|make|build|deliver)s?\s*$', before)
@@ -327,17 +312,12 @@ def _chain(p, ns, us, ds):
             den=[h]
     target=core._amount(Fraction(1),asked,den,'',[])
     answers={}
-    for signs in product((1,-1),repeat=len(atoms)):
+    factors = [(a.value, a.dims) for a in atoms]
+    for value, signs in dimensional_products(factors, target.dims):
         # The available stock is a numerator, never a reciprocal.
         if not den and any(s<0 and not ds[i] and us[i] not in [d for group in ds for d in group] for i,s in enumerate(signs)):
             continue
-        value=Fraction(1); powers={}
-        for a,s in zip(atoms,signs):
-            value=value*a.value if s==1 else value/a.value
-            for u,e in a.dims:
-                powers[u]=powers.get(u,0)+s*e
-        if core._dim(powers)==target.dims:
-            answers[value/target.value]=signs
+        answers[value/target.value]=signs
     if len(answers)!=1:
         return None
     value,signs=next(iter(answers.items()))
@@ -345,12 +325,8 @@ def _chain(p, ns, us, ds):
     # measured units retain their exact fractional values.
     discrete = asked not in core._MEASURES | _TIME | {'money', 'cent'}
     if not den and discrete and any(asked in group for group in ds):
-        if re.search(r'\b(?:need|required|should|must|order)\b', query):
-            value = Fraction(-(-value.numerator // value.denominator))
-        elif re.search(r'\bcan\b', query) and re.search(r'\b(?:make|produce|fit|fill|buy|wrap)\b', query):
-            value = Fraction(value.numerator // value.denominator)
+        value = whole_count(value, query)
     return _result(value,' * '.join(_f(n) if s==1 else '(1 / {})'.format(_f(n)) for n,s in zip(ns,signs))+' (using compatible units)',p)
-
 
 
 def _work_and_production(p, ns, us, ds):

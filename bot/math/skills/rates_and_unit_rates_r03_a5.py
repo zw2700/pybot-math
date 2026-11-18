@@ -9,7 +9,11 @@ from dataclasses import dataclass, replace
 from fractions import Fraction
 
 from ..numbers import format_number
-from .rates_and_unit_rates_r01_a4 import _singular, _sentence
+from .rates_and_unit_rates_r01_a4 import _singular
+from ._rates_common import (
+    has as _has, sentence as _sentence, noun_head, dimensional_products,
+    each_subject, per_unit, group_unit,
+)
 
 
 _STOP = set(('of in on at for to from with and or but as by than before after '
@@ -50,10 +54,6 @@ _SCALE = {'second': ('hour', Fraction(1, 3600)), 'minute': ('hour', Fraction(1, 
           'cent': ('money', Fraction(1, 100))}
 
 
-def _has(pattern, text):
-    return re.search(pattern, text) is not None
-
-
 def _normal(word):
     word = {'mice': 'mouse', 'millilitres': 'milliliter', 'litres': 'liter',
             'milligrams': 'milligram', 'salesperson': 'professional',
@@ -63,18 +63,7 @@ def _normal(word):
 
 
 def _head(tail):
-    words = re.findall(r"[a-z]+(?:'[a-z]+)?|[^a-z\s-]", tail.lstrip(' -'))
-    phrase = []
-    for word in words:
-        if word in _STOP or not word[0].isalpha():
-            break
-        word = _normal(word)
-        phrase.append(word)
-        if word in _MEASURES or word in ('money', 'cent', 'mph'):
-            return word
-        if len(phrase) == 4:
-            break
-    return phrase[-1] if phrase else ''
+    return noun_head(tail, _STOP, _normal, _MEASURES | {'money', 'cent', 'mph'})
 
 
 def _unit(p, n):
@@ -187,20 +176,14 @@ def _denominators(p, ns, i, units):
     suffix = re.split(r'[.!?;](?:\s|$)', t[n.end:end])[0]
     before = re.split(r'[.!?;](?:\s|$)', t[:n.start])[-1]
     dens = []
-    m = re.search(r'(?:\b(?:per|each|every|an?)\s+|/)([a-z]+)\b', suffix)
-    if m and not any(w in _STOP - {'of', 'in', 'for', 'it'} for w in re.findall(r'[a-z]+', suffix[:m.start()])):
-        den = _head(suffix[m.start(1):])
-        if den and den not in _STOP and den not in ('one', 'other'):
-            dens.append(den)
-    # A subject's rate: "Each jar contains N ...".  A unit may have both
-    # a container denominator and a time denominator.
-    m = re.search(r'\b(?:each|every)\s+([a-z]+(?:\s+[a-z]+){0,2}?)\s+'
-                  r'(?:(?:is|can|will)\s+)?(?:[a-z]+\s+){0,3}?'
-                  r'(?:has|holds?|contains?|uses?|produces?|makes?|needs?|takes?|is|had|lays?|seats?|fits?|fills?|yields?|cut into|in)\s*$', before)
-    if m:
-        den = _head(m.group(1))
-        if den and den not in dens:
-            dens.append(den)
+    denominator = per_unit(suffix, _head, _STOP)
+    if denominator:
+        dens.append(denominator)
+    # The explicit each-subject supplies a denominator independently of
+    # the particular action verb or commodity.
+    subject = each_subject(before, _normal, _STOP, units)
+    if subject and subject not in dens:
+        dens.append(subject)
     # Relative clauses and verb phrases do not change the container's role.
     m = re.search(r'\b(?:each|every)\s+(?:individual\s+)?([a-z]+)\b[^,.;!?]*?'
                   r'\b(?:is (?:then )?(?:cut|chopped) into|produces|weighs|sells)\s*$', before)
@@ -268,6 +251,9 @@ def _denominators(p, ns, i, units):
         m = re.search(r'\b(?:every|each) (day|week|month|hour)\b',sentence)
         if m and len([k for k in ns if _sentence(t,k) == sentence]) == 1:
             dens = [m.group(1)]
+    grouped = group_unit(t, ns, i, units, _head)
+    if grouped:
+        dens.append(grouped)
     return list(dict.fromkeys(dens))
 
 
@@ -346,25 +332,16 @@ def _dimensional(p, ns):
         i = observed
         measured_rate = _combine(atoms[i], atoms[i+1], True)
         atoms = [a for j, a in enumerate(atoms) if j not in (i, i+1)] + [measured_rate]
-    # Enumerate the at most two multiplicative operations, retaining only
-    # one numerical interpretation for the requested dimension.
-    full = frozenset(range(len(ns)))
-    candidates = list(atoms)
-    for _ in range(len(atoms)-1):
-        additions = []
-        for a in candidates:
-            for b in candidates:
-                if a.used & b.used:
-                    continue
-                for divide in (False, True):
-                    c = _combine(a, b, divide)
-                    if c is not None and c not in candidates and c not in additions:
-                        additions.append(c)
-        candidates.extend(additions)
+    # A multiplicative expression is a product of direct or reciprocal factors.
+    # Enumerate those orientations once, rather than all equivalent trees.
     answers = {}
-    for a in candidates:
-        if a.used == full and a.dims == target.dims:
-            answers[a.value/target.value] = a.expression
+    factors = [(a.value, a.dims) for a in atoms]
+    for value, signs in dimensional_products(factors, target.dims):
+        if not any(sign > 0 for sign in signs):
+            continue
+        expression = ' * '.join(a.expression if sign > 0 else '(1 / '+a.expression+')'
+                                for a, sign in zip(atoms, signs))
+        answers[value/target.value] = expression
     if len(answers) != 1:
         return None
     value, expression = next(iter(answers.items()))

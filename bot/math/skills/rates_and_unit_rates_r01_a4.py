@@ -7,10 +7,7 @@ import re
 from fractions import Fraction
 
 from ..numbers import format_number
-
-
-def _has(pattern, text):
-    return re.search(pattern, text) is not None
+from ._rates_common import has as _has, sentence as _sentence, noun_head
 
 
 def _singular(word):
@@ -37,33 +34,15 @@ _STOPS = set(('of per each every a an the in on at for to from with and or but '
 
 
 def _noun(text):
-    """The head of a short noun phrase, preserving physical units."""
-    words = re.match(r'\s*[- ]?([a-z]+(?:[ -]+[a-z]+){0,4})', text)
-    if not words:
-        return ''
-    result = []
-    for word in re.split(r'[ -]+', words.group(1)):
-        if word in _STOPS:
-            break
-        result.append(word)
-        if word in ('second', 'minute', 'hour', 'day', 'week', 'month', 'year',
-                    'seconds', 'minutes', 'hours', 'days', 'weeks', 'months', 'years',
-                    'ounce', 'ounces'):
-            break
-    return _singular(result[-1]) if result else ''
+    return noun_head(text, _STOPS, _singular,
+                     {'second', 'minute', 'hour', 'day', 'week', 'month', 'year', 'ounce'},
+                     limit=5, possessives=False)
 
 
 def _unit(text, number):
     if number.kind == 'money':
         return 'dollar'
     return _noun(text[number.end:])
-
-
-def _sentence(text, number):
-    left = list(re.finditer(r'[.!?;](?:\s|$)', text[:number.start]))
-    right = re.search(r'[.!?;](?:\s|$)', text[number.end:])
-    return text[left[-1].end() if left else 0:
-                number.end + right.start() if right else len(text)]
 
 
 def _quantities(p):

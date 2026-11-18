@@ -6,11 +6,11 @@ addition/subtraction require their own narrative relation.
 """
 import re
 from fractions import Fraction
-from itertools import product
 
 from ..numbers import format_number
 from . import rates_and_unit_rates_r06_a3 as previous
 from . import rates_and_unit_rates_r03_a5 as core
+from ._rates_common import noun_head, dimensional_products, each_subject
 
 
 _TIME = previous._TIME
@@ -27,18 +27,7 @@ def _normal(word):
 
 
 def _head(tail):
-    words = re.findall(r"[a-z]+(?:'[a-z]+)?|[^a-z\s-]", tail.lstrip(' -'))
-    kept = []
-    for w in words:
-        if w in _STOP or not w[0].isalpha():
-            break
-        w = _normal(w)
-        kept.append(w)
-        if w in core._MEASURES or w in ('money', 'cent', 'mph'):
-            return w
-        if len(kept) == 4:
-            break
-    return kept[-1] if kept else ''
+    return noun_head(tail, _STOP, _normal, core._MEASURES | {'money', 'cent', 'mph'})
 
 
 def _unit(p, n):
@@ -104,9 +93,13 @@ def _denoms(p, ns, us):
         m = re.match(r'\s+[a-z]+\s+in (?:a|an|each) ([a-z]+)\b', after)
         if m:
             ds[i] = [_normal(m.group(1))]
-        m = re.search(r'\beach ([a-z]+) can (?:feed|serve|hold|contain)\s*(?:up to\s*)?$', before)
-        if m:
-            ds[i] = [_normal(m.group(1))]
+        subject = each_subject(before, _normal, _STOP, us)
+        if subject:
+            if re.search(r'\b(?:per|each|every)\b', after):
+                if subject not in ds[i]:
+                    ds[i].append(subject)
+            else:
+                ds[i] = [subject]
         if re.search(r'\b(?:each of them|they each|each person)[^.!?;]*?\b(?:eat|have|ordered|gets?|receives?)\s*$', before):
             ds[i] = ['person']
         if re.search(r'\beach (?:eat|eats|have|has|ordered)\s*$', before):
@@ -1275,20 +1268,15 @@ def _rate_chain(p, ns, us, ds):
     # be combined by cancellation, even if their dimensions happen to fit.
     if not any(e<0 for u,e in target.dims) and sum(not any(e<0 for u,e in a.dims) for a in atoms)>1:
         return None
-    for signs in product((1,-1),repeat=len(atoms)):
+    factors = [(a.value, a.dims) for a in atoms]
+    for val, signs in dimensional_products(factors, target.dims):
         # Plain stocks and group counts multiply; only a quantity whose unit
         # is requested as a denominator or a stated rate may be inverted.
         if any(s<0 and not any(e<0 for u,e in a.dims)
                and not any(u==v and e>0 and power<0 for u,e in a.dims for v,power in target.dims)
                for a,s in zip(atoms,signs)):
             continue
-        val=Fraction(1); dims={}
-        for a,s in zip(atoms,signs):
-            val=val*a.value if s==1 else val/a.value
-            for u,e in a.dims:
-                dims[u]=dims.get(u,0)+s*e
-        if core._dim(dims)==target.dims:
-            answers[val/target.value]=signs
+        answers[val/target.value]=signs
     if len(answers)!=1:
         return None
     value,signs=next(iter(answers.items()))

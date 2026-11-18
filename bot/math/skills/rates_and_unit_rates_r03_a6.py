@@ -3,13 +3,16 @@
 Relations, rather than the order or count of numbers, determine the operations.
 Every quantity must be consumed by a relation; ambiguous dimensions abstain.
 """
-import itertools
 import re
 from dataclasses import dataclass
 from fractions import Fraction
 
 from ..numbers import Number, format_number
 from .rates_and_unit_rates_r01_a4 import _singular
+from ._rates_common import (
+    has as _has, sentence as _sentence, noun_head, dimensional_products,
+    each_subject, per_unit, whole_count,
+)
 
 
 _STOPS = set(('of per each every a an the in on at for to from with and or but '
@@ -45,30 +48,14 @@ _UNITS = {
 }
 
 
-def _has(pattern, text):
-    return re.search(pattern, text) is not None
-
-
 def _normal(word):
     word = _singular(word)
     return {'calory': 'calorie', 'member': 'person', 'scarve': 'scarf'}.get(word, word)
 
 
 def _head(tail):
-    words = re.match(r"\s*[- ]?([a-z]+(?:[ -]+[a-z]+){0,5})", tail)
-    if not words:
-        return ''
-    kept = []
-    for word in re.split(r'[ -]+', words.group(1)):
-        if word in ('total', 'different') and not kept:
-            continue
-        if word in _STOPS:
-            break
-        word = _normal(word)
-        if word in _MEASURES:
-            return word
-        kept.append(word)
-    return kept[-1] if kept else ''
+    return noun_head(tail, _STOPS, _normal, _MEASURES, limit=6,
+                     skip={'total', 'different'}, possessives=False)
 
 
 def _unit(text, n):
@@ -86,14 +73,10 @@ def _convert(value, source, dest):
 
 
 def _numbers(p):
-    """Repair leading-dot decimals locally and remove grammatical references."""
+    """Normalize explicit currency/group units and remove grammatical references."""
     text = p.text.lower()
     ns = []
     for n in p.numbers:
-        if (n.start and text[n.start-1] == '.' and re.fullmatch(r'\d+', n.raw)
-                and (n.start < 2 or not text[n.start-2].isalnum())):
-            currency = n.start >= 2 and text[n.start-2] in '$£€'
-            n = Number(Fraction('0.'+n.raw), n.start-(2 if currency else 1), n.end, (text[n.start-2] if currency else '')+'.'+n.raw, 'money' if currency else n.kind)
         before, after = text[:n.start], text[n.end:]
         if re.match(r'\s+dozen\b',after):
             n = Number(n.value*12,n.start,n.end,n.raw,n.kind)
@@ -145,39 +128,30 @@ def _fmt(n):
     return format_number(n.value if isinstance(n, Number) else n)
 
 
-def _sentence(text, n):
-    left = list(re.finditer(r'[.!?;](?:\s|$)', text[:n.start]))
-    start = left[-1].end() if left else 0
-    right = re.search(r'[.!?;](?:\s|$)', text[n.end:])
-    end = n.end+right.start() if right else len(text)
-    return text[start:end]
-
-
 def _denoms(p, ns):
     """Explicit each/per relations, including fronted and postposed each."""
     text = p.text.lower()
     units = [_unit(text, n) for n in ns]
     result = {}
     indefinite = set()
-    verbs = (r'(?:(?:can|will|must)\s+)?(?:has|have|holds?|contains?|needs?|'
-             r'produces?|makes?|uses?|eats?|gets?|takes?|took|costs?|needed|records?|writes?|reads?|paints?|bakes?|cooks?|prints?|assembles?|packs?|is|are)')
     for i, n in enumerate(ns):
         end = ns[i+1].start if i+1 < len(ns) else len(text)
         suffix = re.split(r'[.!?;](?:\s|$)', text[n.end:end])[0]
         prefix = re.split(r'[.!?;](?:\s|$)', text[:n.start])[-1]
         capacity = re.match(r'-([a-z]+)\s+([a-z]+)\b',suffix)
-        if capacity and _normal(capacity.group(1)) in _MEASURES and _normal(capacity.group(2)) in ('bottle','tank','bag','box','jar','package','container'):
+        if (capacity and _dim(_normal(capacity.group(1)))[0] in {
+                'length', 'volume', 'mass', 'metric_length', 'metric_volume'}
+                and _normal(capacity.group(2)) not in _STOPS):
             result[i] = _normal(capacity.group(2))
-        m = re.search(r'\b(?:per|each|every|an?)\s+([a-z]+)\b', suffix)
-        if (m and not any(w in _STOPS-{'of', 'in', 'for'} for w in re.findall(r'[a-z]+', suffix[:m.start()]))
-                and (not m.group(0).startswith(('a ', 'an ')) or m.group(1) in _MEASURES)):
-            result[i] = _normal(m.group(1))
+        denominator = per_unit(suffix, _head, _STOPS, _MEASURES)
+        if denominator:
+            result[i] = denominator
         task = re.match(r'\s+[a-z]+\s+to\s+[a-z]+\s+(?:a|an)\s+([a-z]+)\b',suffix)
         if units[i] in ('second','minute','hour') and task:
             result[i] = _normal(task.group(1))
-        m = re.search(r'\b(?:each|every)\s+([a-z]+(?:\s+[a-z]+){0,2}?)\s+'+verbs+r'\s+(?:(?:him|her|them|it)\s+)?$', prefix)
-        if m:
-            result[i] = _head(m.group(1))
+        subject = each_subject(prefix, _normal, _STOPS, units)
+        if subject:
+            result[i] = subject
         relative = re.search(r'\beach ([a-z]+(?: [a-z]+)?) (?:he|she|they) (?:sells?|makes?|produces?) (?:earns?|gets?|needs?)\s*$',prefix)
         if relative:
             result[i] = _head(relative.group(1))
@@ -334,16 +308,9 @@ def _chain(p, ns):
         return None
     if len(terms)-len(rates) > 1 and not (denom or _has(r'\b(?:same number|equally|equal)\b', text)):
         return None
-    candidates = []
-    for signs in itertools.product((1,-1), repeat=len(terms)):
-        powers = {}
-        value = Fraction(1)
-        for t, sign in zip(terms, signs):
-            value = value*t.value if sign == 1 else value/t.value
-            for u, power in t.powers.items():
-                powers[u] = powers.get(u,0)+sign*power
-        if {k:v for k,v in powers.items() if v} == target.powers:
-            candidates.append((value/target.value, signs))
+    factors = [(t.value, tuple(t.powers.items())) for t in terms]
+    candidates = [(value/target.value, signs)
+                  for value, signs in dimensional_products(factors, target.powers.items())]
     if not candidates:
         return None
     # Prefer the direct orientation of stated rates; reciprocal time chains
@@ -358,8 +325,20 @@ def _chain(p, ns):
     if not denom and any(sign < 0 and not any(v < 0 for v in t.powers.values())
                          for t, sign in zip(terms, signs)):
         return None
+    # A measured container is discrete: enough containers round up, while
+    # the number that can be filled from a stock rounds down. Do this only
+    # after the entire exact unit chain has been evaluated.
+    unrounded = value
+    if not denom and asked not in _MEASURES:
+        capacities = _denoms(p, ns)
+        if any(d == asked and _dim(_unit(text, ns[i]))[0] in {
+                'length', 'volume', 'mass', 'metric_length', 'metric_volume'}
+               for i, d in capacities.items()):
+            value = whole_count(value, p.question)
     expression = ' * '.join(t.expression if sign == 1 else '(1 / '+t.expression+')'
                             for t,sign in zip(terms,signs))
+    if value != unrounded:
+        expression = 'Round to whole containers: ' + expression
     return _answer(value, expression+' (converted to '+asked+')',
                    'Calculation in dollars' if asked == 'dollar' else 'Calculation')
 
