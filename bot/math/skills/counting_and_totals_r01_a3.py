@@ -117,7 +117,7 @@ def _grouped_total(p):
     if not 2 <= len(ns) <= 5 or any(n.kind != 'number' for n in ns):
         return None
     if _has(r'\b(?:more|less|fewer|than|left|remain|remaining|except|not|lost|loses|sold|'
-            r'half|twice|double|average|percent|cost|costs|price)\b', text):
+            r'half|twice|double|average|percent|cost|costs|price|unused)\b', text):
         return None
     if any(0 < n.value < 1 and re.match(r'\s+of\b', text[n.end:]) for n in ns):
         return None

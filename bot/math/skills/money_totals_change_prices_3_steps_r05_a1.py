@@ -744,6 +744,22 @@ def _coin_value(p, ns):
         terms.append('{} * {} * {}'.format(format_number(stock.value), format_number(size.value), format_number(denomination)))
     else:
         return None
+    if _has(r'\b(?:more|less|difference)\b', p.question):
+        # Separate owners' coin inventories must be compared, not combined.
+        if money or others or len(coins) != 2:
+            return None
+        owners = []
+        for n in coins:
+            m = re.search(r'\b([a-z]+) has\s*$', t[:n.start])
+            if not m:
+                return None
+            owners.append(m.group(1))
+        if owners[0] == owners[1] or not any(
+                _has(r'\b' + re.escape(owner) + r'\b', p.question) for owner in owners):
+            return None
+        amounts = [n.value * denominations[_head(_phrase(t[n.end:]))] for n in coins]
+        return _result(abs(amounts[1] - amounts[0]),
+                       '|{} - {}|'.format(*map(format_number, amounts)), p)
     if money:
         if not _has(r'\b(?:left|remaining)\b', p.question) or not _has(r'\b(?:cost|costs|buy|buying|pay)\b', t):
             return None
