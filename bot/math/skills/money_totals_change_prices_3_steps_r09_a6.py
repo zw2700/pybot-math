@@ -4,23 +4,15 @@ Every reader binds quantities to a transaction or unit. Unsupported relations
 and unconsumed quantities cause abstention; all arithmetic is rational.
 """
 import re
-from dataclasses import replace
 from fractions import Fraction
 
 from ..numbers import format_number
-from .money_totals_change_prices_1_2_steps_r02_a1 import _bounds, _role, _singular
+from ._money_common import _currencies, _has, _expr, _bounds, _role, _singular
 from .money_totals_change_prices_1_2_steps_r06_a4 import _answer, _label
-from .money_totals_change_prices_3_steps_r05_a1 import (
-    _numbers, _phrase, _head, _same, _aggregate, _output,
+from ._money_common import (
+    _numbers, _phrase, _head, _same, _price_matches, _aggregate, _output, _TIME as _PERIODS,
+    _period_scale as _scale,
 )
-
-
-def _has(pattern, text):
-    return re.search(pattern, text) is not None
-
-
-def _expr(values):
-    return ' + '.join(format_number(v) for v in values) or '0'
 
 
 def _noun(tail):
@@ -31,11 +23,6 @@ def _noun(tail):
     tail = re.sub(r'\bback home\b','',tail)
     tail = re.sub(r'^\s*(?:kids?|people|students?)\s+(?:want|choose|chose)\s+', ' ', tail)
     tail = re.sub(r'^\s*(?:want|choose|chose)\s+', ' ', tail)
-    container=re.match(r'\s*(packets?|packages?|packs?|stacks?|slices?|cups?|cans?|bottles?|boxes?|bags?)\s+of\s+(.+)',tail)
-    if container:
-        unit=_singular(container.group(1))
-        unit={'package':'packet','pack':'packet'}.get(unit,unit)
-        return unit+' '+_noun(container.group(2))
     quoted=re.match(r'\s*["\']([a-z -]+)["\']\s*([a-z]+)?',tail)
     if quoted:
         return quoted.group(1)+' '+_singular(quoted.group(2) or 'item')
@@ -45,13 +32,7 @@ def _noun(tail):
 
 
 def _compatible(a,b):
-    if _same(a,b):
-        return True
-    containers={'packet','stack','slice','cup','can','box','bag','bottle'}
-    if a=='ticket' and b=='pass' or b=='ticket' and a=='pass':
-        return True
-    return bool(a and b and (a in containers and b.startswith(a+' ')
-                            or b in containers and a.startswith(b+' ')))
+    return _same(a, b) or {a, b} == {'ticket', 'pass'}
 
 
 def _price(p, ns, n):
@@ -67,14 +48,14 @@ def _price(p, ns, n):
     if m:
         unit=_noun(m.group(1))
         subject=re.search(r'\b([a-z]+) for\s*$',before)
-        if unit in {'bottle','cup','packet','can'} and subject:
+        if subject:
             item=_singular(subject.group(1))
             if item not in {'a','an','each','it','them'}:
-                return unit+' '+item,True
+                candidate = _noun(unit+' of '+item)
+                if any(c.kind != 'money' and ' of ' in _noun(t[c.end:])
+                       and _same(candidate, _noun(t[c.end:])) for c in ns):
+                    return candidate, True
         return unit, True
-    m=re.search(r'\b([a-z]+),?\s+(?:which|that) costs?\s*$',before)
-    if m:
-        return _singular(m.group(1)),True
     m = re.search(r'\bfor (?:each|every) ([a-z -]+?) (?:he|she|they|\w+) (?:makes?|earns?|gets?)\s*$', before)
     if m:
         return _noun(m.group(1)), True
@@ -143,6 +124,11 @@ def _basket(p, ns):
     if _has(r'\b(?:in total|altogether)\b[^.;]*\bpaid\b|\bpaid\b[^.;]*\b(?:in total|altogether)\b',p.body):
         return None
     labels = {id(c): _noun(t[c.end:]) for c in counts}
+    price_labels = {id(n): _price(p, ns, n) for n in money}
+    # A coordinated catalog may name the container once, then list only
+    # contents. Inherit that unit only from an explicit quote in this basket.
+    containers = {_head(label) for label, explicit in price_labels.values()
+                  if explicit and ' of ' in label}
     used, terms = set(), []
     for i, n in enumerate(money):
         lower = money[i-1].end if i else 0
@@ -166,8 +152,14 @@ def _basket(p, ns):
             used.add(id(c))
             terms.append(('tender', c.value*n.value, '{} * {}'.format(format_number(c.value),format_number(n.value))))
             continue
-        label, explicit = _price(p, ns, n)
-        matches = [c for c in counts if _compatible(label, labels[id(c)])]
+        label, explicit = price_labels[id(n)]
+        matches = [c for c in counts if _compatible(label, labels[id(c)])
+                   or _price_matches(p, n, label, labels[id(c)])]
+        if not matches:
+            matches = [c for c in counts
+                       if ' of ' in labels[id(c)]
+                       and _head(labels[id(c)]) in containers
+                       and _same(label, labels[id(c)].split(' of ', 1)[1])]
         if not matches and label=='ticket':
             matches=[c for c in counts if lower<=c.start<n.start
                      and _head(labels[id(c)]) in {'person','adult','child','student'}
@@ -205,14 +197,6 @@ def _basket(p, ns):
     if {role for role,value,expr in terms}=={'expense','income'}:
         return None
     return _output(p, _aggregate(p, terms))
-
-
-_PERIODS = {'hour','day','week','month','year'}
-_SCALE = {('day','week'): 7, ('month','year'): 12, ('week','year'): 52}
-
-
-def _scale(source, target):
-    return 1 if source == target else _SCALE.get((source, target))
 
 
 def _schedule_ledger(p, ns):
@@ -929,12 +913,11 @@ def solve(problem):
     if not _has(r'[$£€]|\b(?:dollars?|cents?|euros?)\b',t):
         return None
     ns=_numbers(problem)
-    ns=[replace(n,kind='money') if _has(r'^\s*[$£€](?!\s*\d)',t[n.end:]) else n for n in ns]
     ns=[n for n in ns if not (n.value==1 and n.kind!='money'
         and _has(r'^\s+day (?:passes|tickets)\b',t[n.end:]))]
     if not 2<=len(ns)<=12 or any(n.kind=='percent' or n.value<0 for n in ns):
         return None
-    if len({n.raw[0] for n in ns if n.raw[:1] in '$£€'})>1:
+    if len(_currencies(problem, ns))>1:
         return None
     if re.match(r'how many (?!(?:more |fewer )?(?:dollars?|cents?|euros?)\b)',problem.question):
         for rule in (_break_even_net,_missing_category,_bundle,_same_proceeds):

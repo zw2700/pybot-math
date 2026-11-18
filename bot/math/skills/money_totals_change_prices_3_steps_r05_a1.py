@@ -10,263 +10,12 @@ from fractions import Fraction
 
 from ..numbers import format_number
 from ..problem import Problem
-from .money_totals_change_prices_1_2_steps_r02_a1 import (
-    _bounds, _money, _role, _singular,
+from ._money_common import (
+    _currencies,
+    _has, _bounds, _money, _role, _singular, _STOP, _TIME,
+    _phrase, _head, _same, _numbers, _result, _output,
+    _price_label, _price_matches, _aggregate, _period_scale,
 )
-
-
-_STOP = set(('a an the of in on at for to from with by and or but that which who '
-             'is are was were has have had will would can could does did do '
-             'each every per cost costs costing worth needs need bought buys '
-             'buy sold sells sell spent spends spend gets get takes take '
-             'paid pays pay earned earns earn made make makes left remaining '
-             'only these those his her their its them they it he she '
-             'over about into out all total then currently now charging so '
-             'wants want wanted went work works working worked gave gives '
-             'received receives purchased purchase indicate indicates '
-             'watched subscribed before after last just more less pre how mowed away full').split())
-_TIME = {'hour', 'day', 'week', 'month', 'year'}
-_MEASURE = {'pair', 'dozen', 'gram', 'kilogram', 'pound', 'meter', 'foot', 'gallon', 'loaf', 'carton'}
-_PERSON = {'person', 'employee', 'worker', 'rep', 'participant', 'guest', 'adult', 'child', 'professional', 'student', 'teacher'}
-
-
-def _has(pattern, text):
-    return re.search(pattern, text) is not None
-
-
-def _phrase(tail):
-    """A short noun phrase; measures and containers retain their own unit."""
-    tail = re.sub(r'^\s*[- ]?(?:of\s+)?(?:(?:the|his|her|their|one)\s+)?', '', tail)
-    words = re.findall(r"[a-z]+(?:'[a-z]+)?|[^a-z\s-]", tail)
-    result = []
-    for i, word in enumerate(words):
-        if word in _STOP or not word[0].isalpha():
-            break
-        word = _singular(word.replace("'s", '').rstrip("'"))
-        word = {'ft': 'foot', 'kg': 'kilogram', 'g': 'gram', 'loave': 'loaf',
-                'afternoon': 'day', 'morning': 'day', 'evening': 'day',
-                'tomatoe': 'tomato', 'potatoe': 'potato'}.get(word, word)
-        result.append(word)
-        if word in _TIME | _MEASURE:
-            if word in _MEASURE and words[i+1:i+2] == ['of']:
-                material = _phrase(' '.join(words[i+2:]))
-                if material:
-                    result.append(material)
-            break
-        if len(result) == 4:
-            break
-    return ' '.join(result)
-
-
-def _head(label):
-    if not label:
-        return ''
-    return label.split()[0] if label.split()[0] in _MEASURE else label.split()[-1]
-
-
-def _same(a, b):
-    if not a or not b:
-        return False
-    if a == b:
-        return True
-    if a.endswith(' ticket') and _head(b) in _PERSON:
-        return _same(a[:-7], b)
-    if _head(a) == 'participant' and _head(b) == 'guest':
-        return True
-    if _head(a) == 'adult' and _head(b) == 'teacher':
-        return True
-    if a in _PERSON and b.split()[0] == a:
-        return True
-    if _head(a) == _head(b) and (set(a.split()) <= set(b.split()) or set(b.split()) <= set(a.split())):
-        return True
-    return _head(a) == _head(b) and (len(a.split()) == 1 or len(b.split()) == 1)
-
-
-def _numbers(p):
-    t = p.text.lower()
-    result = []
-    for n in p.numbers:
-        before, after = t[:n.start], t[n.end:]
-        if (n.start >= len(p.body) and _has(r'\bthese\s*$', before)
-                and _has(r'^\s+days?\b', after)
-                and n.value == len(set(re.findall(r'\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b', p.body)))):
-            continue
-        if n.value == 1 and _has(r'^\s+day (?:the|he|she|they)\b', after):
-            continue
-        # A unit definition is not another item to buy.
-        if n.value == 1 and not _money(t, n) and (
-                _has(r'\bprice of\s*$', before)
-                or _has(r'^\s+of them\b', after)
-                or n.start >= len(p.body) and _has(r'^\s+of (?:the )?other\b', after)
-                or (_has(r'^\s+(?:[a-z]+\s+){1,6}(?:is|was|costs?)\s+[$\d]', after)
-                    and not _has(r'\b(?:bought|buys?|purchased)\b[^.;]*$', before))
-                or _has(r'\beach\s*$', before) and _has(r'^\s*(?:of|[.,;])', after)):
-            continue
-        if n.start >= len(p.body) and any(
-                k.value == n.value and (_phrase(t[k.end:]) == _phrase(after)
-                or _head(_phrase(t[k.end:])) in _PERSON and _head(_phrase(after)) in _PERSON)
-                for k in result):
-            continue
-        if _money(t, n) or _has(r'^-dollars?\b', after):
-            if _has(r'^\s*cents?\b', after):
-                n = replace(n, value=n.value/100)
-            n = replace(n, kind='money')
-        result.append(n)
-    return result
-
-
-def _result(value, expression, p):
-    if value < 0:
-        return None
-    label = 'Money total'
-    for pattern, name in ((r'profit', 'Profit'), (r'change', 'Change'),
-                          (r'left|remaining', 'Money remaining'),
-                          (r'earn|salary|make|made', 'Earnings'),
-                          (r'cost|price', 'Cost'), (r'pay|paid', 'Payment'),
-                          (r'spend|spent', 'Spending')):
-        if _has(r'\b(?:'+pattern+r')\b', p.question):
-            label = name
-            break
-    return value, '{}: {} = {} dollars.'.format(label, expression, format_number(value))
-
-
-def _output(p, result):
-    """Convert the final result only; internal ledger terms stay in dollars."""
-    if result is None:
-        return None
-    value, working = result
-    if _has(r'\bin cents\b', p.question):
-        value *= 100
-        working += ' In cents: {}.'.format(format_number(value))
-    elif '£' in p.text:
-        working = working.replace('dollars', 'pounds')
-    elif '€' in p.text:
-        working = working.replace('dollars', 'euros')
-    return value, working
-
-
-def _price_label(p, ns, n):
-    """Return (unit label, explicit unit-price cue)."""
-    t = p.text.lower()
-    start, end = _bounds(t, n)
-    following = min([k.start for k in ns if k.start > n.start] or [len(t)])
-    prefix, suffix = t[start:n.start], t[n.end:min(end, following)]
-    suffix = re.sub(r'^\s*(?:dollars?|cents?)\b', '', suffix)
-    m = re.search(r'\bprice of (?:one|a|an)\s+([a-z -]+?)\s+is\s*$', prefix)
-    if m:
-        return _phrase(m.group(1)), True
-    m = re.match(r'\s*(?:per|for (?:a|an|each|every)|a|an)\s+(.+)', suffix)
-    if m:
-        return _phrase(m.group(1)), True
-    m = re.match(r'\s+for\s+([a-z]+s)\b', suffix)
-    if m and _head(_phrase(m.group(1))) in _PERSON:
-        return _phrase(m.group(1)), True
-    m = re.match(r'\s+to\s+\w+\s+(?:for\s+)?(?:a|an|each)\s+(.+)', suffix)
-    if m:
-        label = _phrase(m.group(1))
-        if label:
-            return label, True
-    m = re.search(r'\b(?:fee|price|cost) for\s+([a-z]+)\s+costs?\s*$', prefix)
-    if m:
-        return _phrase(m.group(1)), True
-    # The closest determiner identifies the price subject even when a longer
-    # sentence introduces it: "a vendor lists a decorated item that costs ...".
-    for determiner in reversed(list(re.finditer(r'\b(?:each|every|a|an)\s+', prefix))):
-        m = re.fullmatch(r'([a-z -]+?)\s+(?:(?:that|which)\s+)?(?:costs?|is|was|are|were|gave|gives|pays?|paid|gets?|earns?|sells? for)\s+(?:(?:him|her|them|\w+)\s+)?', prefix[determiner.end():])
-        if m:
-            label = _phrase(m.group(1))
-            if label:
-                return label, True
-    # Fronted each/every: "each pair of ... costs PRICE".
-    m = re.search(r'\b(?:each|every|a|an)\s+([a-z -]+?)\s+(?:costs?|is|was|are|were|gave|gives|pays?|paid|gets?|earns?)\s+(?:(?:him|her|them|\w+)\s+)?$', prefix)
-    if m:
-        label = _phrase(m.group(1))
-        if label:
-            return label, True
-    m = re.search(r'\b(?:sells?|sold|selling)\s+each\s+([a-z -]+?)\s+(?:at|for)\s*$', prefix)
-    if m:
-        return _phrase(m.group(1)), True
-    m = re.search(r'\b(?:sell|sells|sold)\s+(?:a|an)\s+([a-z -]+?)\s+for\s*$', prefix)
-    if m:
-        return _phrase(m.group(1)), True
-    m = re.search(r'\band\s+(?:a|an)\s+([a-z -]+?)\s+for\s*$', prefix)
-    if m:
-        return _phrase(m.group(1)), True
-    # A quoted title or modified noun is preserved as a category.
-    m = re.search(r'([a-z"\' -]+?)\s+(?:(?:that|which)\s+)?(?:costs?|are|were|is|was)(?:\s+at)?\s*$', prefix)
-    if m:
-        subject = re.split(r'[,;]|\band\b|\bif\b', m.group(1))[-1]
-        subject = re.sub(r'^\s*(?:the|a|an)\s+', '', subject)
-        subject = re.sub(r'\b(?:least-selling|best-selling)\s+', '', subject)
-        label = _phrase(subject)
-        if label and _head(label) not in _STOP:
-            return label, True
-    local_counts = [k for k in ns if k.kind != 'money' and start <= k.start < n.start]
-    # "N items which cost PRICE" and "N items at PRICE each".
-    if local_counts:
-        c = local_counts[-1]
-        middle = t[c.end:n.start]
-        if (_has(r'\b(?:each|apiece|a piece)\b', suffix)
-                or _has(r'\b(?:which|that)\s+costs?\s*$', middle)):
-            return _phrase(t[c.end:]), True
-    if _has(r'^\s*(?:each|apiece|a piece)\b', suffix):
-        # Resolve postposed each to a named price subject or a unique count.
-        m = re.search(r'\b([a-z]+(?: [a-z]+)?)\s+(?:at|for)\s*$', prefix)
-        if m:
-            return _phrase(m.group(1)), True
-        return '*', True
-    # Possessive unit definition: "the price of one pencil is PRICE".
-    m = re.search(r'\bprice of (?:one|a|an)\s+([a-z -]+?)\s+is\s*$', prefix)
-    if m:
-        return _phrase(m.group(1)), True
-    return '', False
-
-
-def _aggregate(p, terms):
-    """Terms are classified transaction totals after resolving their units."""
-    q = p.question
-    groups = {}
-    for role, value, expr in terms:
-        groups.setdefault(role, []).append((value, expr))
-    def total(roles):
-        return sum((v for r in roles for v, e in groups.get(r, [])), Fraction(0))
-    def expression(roles):
-        return ' + '.join(e for r in roles for v, e in groups.get(r, [])) or '0'
-    if _has(r'\b(?:difference|more.*than|less.*than)\b', q):
-        if len(terms) == 2 and not set(groups) & {'balance', 'remaining', 'tender'}:
-            return _result(abs(terms[0][1]-terms[1][1]),
-                           '|{} - {}|'.format(terms[0][2], terms[1][2]), p)
-        return None
-    if 'profit' in q:
-        if set(groups) == {'income', 'expense'}:
-            return _result(total(['income'])-total(['expense']),
-                           '({}) - ({})'.format(expression(['income']), expression(['expense'])), p)
-        return None
-    if _has(r'\b(?:initially|originally|at first|start|before)\b', q):
-        if set(groups) <= {'expense', 'remaining'} and 'remaining' in groups:
-            return _result(total(groups), expression(groups), p)
-        return None
-    if _has(r'\bmore\b.*\b(?:need|earn|save)|\b(?:need|earn|save)\b.*\bmore\b|\b(?:owe|owes)\b', q):
-        if set(groups) <= {'expense', 'balance', 'income'} and 'expense' in groups:
-            return _result(total(['expense'])-total(['balance', 'income']),
-                           '({}) - ({})'.format(expression(['expense']), expression(['balance', 'income'])), p)
-        return None
-    if _has(r'\b(?:left|remaining|change|back)\b', q):
-        if 'expense' in groups and set(groups) <= {'balance', 'tender', 'income', 'expense'}:
-            return _result(total(['balance', 'tender', 'income'])-total(['expense']),
-                           '({}) - ({})'.format(expression(['balance', 'tender', 'income']), expression(['expense'])), p)
-        return None
-    if 'remaining' in groups:
-        if set(groups) <= {'balance', 'income', 'remaining', 'expense'}:
-            return _result(total(['balance', 'income'])-total(['remaining', 'expense']),
-                           '({}) - ({})'.format(expression(['balance', 'income']), expression(['remaining', 'expense'])), p)
-        return None
-    if set(groups) <= {'income', 'expense'}:
-        # A seller's receipts are the buyer's spending; both use the basket sum.
-        return _result(total(groups), expression(groups), p)
-    if set(groups) == {'tender'} and _has(r'\bbills?\b', q):
-        return _result(total(groups), expression(groups), p)
-    return None
 
 
 def _basket(p, ns):
@@ -296,6 +45,8 @@ def _basket(p, ns):
         return None
     money = [n for n in ns if n.kind == 'money']
     counts = [n for n in ns if n.kind != 'money']
+    if any(c.start >= len(p.body) for c in counts) and any(c.start < len(p.body) for c in counts):
+        return None  # A new query quantity is not another purchase in the body.
     if len(money) == 1 and len(counts) == 2:
         price = money[0]
         for c in counts:
@@ -322,7 +73,7 @@ def _basket(p, ns):
             role = 'expense'
         if _has(r'\b(?:rent|rents|rented|expense|expenses)\b[^.;]*$', t[lower:n.start]):
             role = 'expense'
-        if _has(r'\b(?:participant|guest)\s+(?:gave|gives)\b[^.;]*$', t[lower:n.start]) or _has(r'\b(?:put in|contributed)\s*$', t[lower:n.start]):
+        if _has(r'\b(?:each|every) [a-z -]+ (?:gave|gives)\b[^.;]*$', t[lower:n.start]) or _has(r'\b(?:put in|contributed)\s*$', t[lower:n.start]):
             role = 'income'
         if role is None and terms and not _has(r'[.;]', t[lower:n.start]):
             role = terms[-1][0]
@@ -345,7 +96,7 @@ def _basket(p, ns):
             return None
         matches = []
         if label:
-            matches = [c for c in counts if _same(label, labels[id(c)])]
+            matches = [c for c in counts if _price_matches(p, n, label, labels[id(c)])]
             if label == '*':
                 start, end = _bounds(t, n)
                 matches = [c for c in counts if start <= c.start < n.start and id(c) not in used]
@@ -423,9 +174,11 @@ def _schedule(p, ns):
             munit = 'day'
         else:
             munit = m.group(1) if m else ''
-        if (unit in _PERSON or i == 0 and _has(r'\bthey each (?:charge|earn|are paid)\b', p.body)) and not munit:
-            if not _has(r'\beach\b|\bone of them\b', p.text.lower()):
-                return None
+        if unit not in _TIME and not munit and (
+                any(_head(_phrase(m.group(1))) == unit
+                    for m in re.finditer(r'\b(?:each|every) ([a-z -]+)', p.body))
+                or _has(r'\bone of them\b', t)
+                or i == 0 and _has(r'\bthey each (?:charge|earn|are paid)\b', p.body)):
             workforce.append(n)
         elif unit == 'day' and _has(r'^\s+days? off\b[^.;]*\bper week\b', suffix):
             if not 0 <= n.value <= 7 or 'day' in links:
@@ -506,7 +259,7 @@ def _installments(p, ns):
         return None
     duration = counts[0]
     unit = _head(_phrase(t[duration.end:]))
-    scale = {('month', 'year'): 12, ('day', 'week'): 7}.get((period, unit), 1 if unit == period else None)
+    scale = _period_scale(period, unit)
     if scale is None or not _has(r'\b(?:pay|paid|cost|price|spend)\b', p.question):
         return None
     return _result(price.value*duration.value*scale+fee.value,
@@ -1059,11 +812,7 @@ def solve(problem):
         return None
     if re.match(r'how many (?!dollars?\b|cents?\b|euros?\b)', problem.question):
         return _output(problem, _missing_count(problem, ns))
-    currencies = {n.raw[0] for n in ns if n.raw[:1] in '$£€'}
-    if _has(r'\bdollars?\b', problem.text.lower()):
-        currencies.add('$')
-    if _has(r'\beuros?\b', problem.text.lower()):
-        currencies.add('€')
+    currencies = _currencies(problem, ns)
     if len(currencies) > 1:
         return None
     coins = _coin_value(problem, ns)

@@ -5,18 +5,14 @@ time units; unsupported transactions and ambiguous units are left to other
 skills. Arithmetic is exact, including prices expressed in cents.
 """
 import re
-from dataclasses import replace
 from fractions import Fraction
 
 from ..numbers import format_number
-from .money_totals_change_prices_1_2_steps_r02_a1 import _bounds, _role, _singular
-from .money_totals_change_prices_3_steps_r05_a1 import (
-    _numbers, _phrase, _head, _same, _price_label, _output, _result,
+from ._money_common import (
+    _currencies,
+    _has, _expr, _bounds, _role, _singular, _numbers, _phrase, _head,
+    _same, _price_label, _output, _result, _PERIODS, _period_scale,
 )
-
-
-def _has(pattern, text):
-    return re.search(pattern, text) is not None
 
 
 def _answer(p, value, expression):
@@ -37,10 +33,6 @@ def _answer(p, value, expression):
     if context:
         result = result[0], 'For {}: {}'.format(', '.join(context), result[1])
     return result
-
-
-def _expr(values):
-    return ' + '.join(format_number(v) for v in values) or '0'
 
 
 def _label(p, ns, n):
@@ -66,9 +58,6 @@ def _label(p, ns, n):
     m = re.search(r'\b(?:one|a|an|each) ([a-z]+(?: [a-z]+){0,2}?) (?:is|was) sold for\s*$', t[start:n.start])
     if m:
         return _phrase(m.group(1)), True
-    m = re.search(r'\b([a-z]+) (?:which|that) costs?\s*$', t[start:n.start])
-    if m:
-        return _singular(m.group(1)), True
     if _has(r'^\s*(?:each|every) month\b', t[start:n.start]):
         return 'month', True
     if _has(r'\bthey each (?:pay|cost|earn)\s*$', t[start:n.start]):
@@ -318,14 +307,8 @@ def _unit(tail):
     measure = re.match(r'\s*[- ]?(seconds?|minutes?|hours?|days?|weeks?|months?|years?|miles?|liters?|litres?|kilograms?|grams?|kg|ml)\b', tail)
     if measure:
         return {'kg': 'kilogram', 'litre': 'liter'}.get(_singular(measure.group(1)), _singular(measure.group(1)))
-    measure = re.match(r'\s+(pieces?|packages?|boxes?|bottles?|bags?)\s+of\b', tail)
-    if measure:
-        return _singular(measure.group(1))
     if _has(r'^\s+times\b', tail):
         return 'event'
-    person = re.match(r'\s+(people|persons?|friends?|sisters?|brothers?|members?|guests?|adults?|children|students?)\b', tail)
-    if person:
-        return _singular(person.group(1))
     return _head(_phrase(tail))
 
 
@@ -495,15 +478,6 @@ def _quoted_price(p, ns):
         return None
     return _answer(p, target.value*price.value/base.value,
                    '{} * {} / {}'.format(*(format_number(n.value) for n in (target, price, base))))
-
-
-_PERIODS = {'day', 'week', 'month', 'quarter', 'year'}
-_CONVERSIONS = {('day', 'week'): 7, ('week', 'year'): 52,
-                ('month', 'year'): 12, ('day', 'year'): 365, ('quarter', 'year'): 4}
-
-
-def _period_scale(source, target):
-    return Fraction(1) if source == target else _CONVERSIONS.get((source, target))
 
 
 def _recurring_cost(p, ns):
@@ -985,9 +959,6 @@ def solve(problem):
     if _has(r'\b(?:twice|thrice|double[ds]?|triple[ds]?)\b', t):
         return None
     ns = _numbers(problem)
-    # With a currency symbol present, the explicit dollar amount takes
-    # precedence over a redundant trailing "cents" in conversational wording.
-    ns = [replace(n, value=n.value*100) if n.raw[:1] in '$£€' and _has(r'^\s+cents?\b', t[n.end:]) else n for n in ns]
     # A grammatical "one item was sold for PRICE" defines a unit price.
     ns = [n for n in ns if not (n.kind != 'money' and n.value == 1
           and _has(r'^\s+[a-z]+(?: [a-z]+){0,2} (?:is|was) sold for\s+[$£€]', t[n.end:]))]
@@ -998,11 +969,7 @@ def solve(problem):
     enough = 2 <= len(ns) <= 10 or len(ns) == 1 and _has(r'\bquarterly\b', t)
     if not enough or any(n.value < 0 or n.kind == 'percent' for n in ns):
         return None
-    currencies = {n.raw[0] for n in ns if n.raw[:1] in '$£€'}
-    if _has(r'\bdollars?\b', t):
-        currencies.add('$')
-    if _has(r'\beuros?\b', t):
-        currencies.add('€')
+    currencies = _currencies(problem, ns)
     if len(currencies) > 1:
         return None
     owners = set(re.findall(r'\b([A-Z][a-z]+) (?:has|had|buys|bought|spent|spends|earns|earned|makes)\b', problem.text[:len(problem.body)]))

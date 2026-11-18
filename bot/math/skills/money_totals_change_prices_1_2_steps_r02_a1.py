@@ -5,60 +5,17 @@ counts with a matching unit. Unused quantities or unsupported relations cause
 abstention. All computations use rational arithmetic.
 """
 import re
-from dataclasses import replace
 from fractions import Fraction
 
 from ..numbers import format_number
-
-
-def _has(pattern, text):
-    return re.search(pattern, text) is not None
-
-
-def _singular(word):
-    irregular = {'people': 'person', 'children': 'child', 'men': 'man',
-                 'women': 'woman', 'feet': 'foot', 'inches': 'inch',
-                 'pies': 'pie', 'kg': 'kilogram', 'g': 'gram'}
-    if word in irregular:
-        return irregular[word]
-    if word.endswith('ies'):
-        return word[:-3] + 'y'
-    if word.endswith(('ches', 'shes', 'sses', 'xes')):
-        return word[:-2]
-    return word[:-1] if word.endswith('s') and not word.endswith('ss') else word
-
-
-_STOP = set(('a an the of in on at for to from with by and or but that which who '
-             'is are was were has have had will would can could does did do '
-             'each every per cost costs costing worth needs need bought buys '
-             'buy sold sells sell spent spends spend gets get takes take '
-             'paid pays pay earned earns earn made make makes left remaining '
-             'only these those his her their its them they it he she '
-             'over about into out all total then currently now washed charging so').split())
+from ._money_common import (
+    _has, _singular, _money, _money_number, _currencies, _bounds, _role,
+    _STOP, _phrase, _head, _same,
+)
 
 
 def _noun(tail):
-    tail = re.sub(r'^\s*(?:of )?(?:(?:the|their|his|her|such) )?', '', tail)
-    words = re.match(r'\s*[- ]?([a-z]+(?:[ -]+[a-z]+){0,5})', tail)
-    result = []
-    if words:
-        for word in re.split(r'[ -]+', words.group(1)):
-            if word in _STOP:
-                break
-            result.append(word)
-            if word in ('day', 'days', 'week', 'weeks', 'month', 'months',
-                        'year', 'years', 'hour', 'hours', 'pound', 'pounds',
-                        'kilogram', 'kilograms', 'gram', 'grams'):
-                break
-    return _singular(result[-1]) if result else ''
-
-
-def _money(text, n):
-    return n.kind == 'money' or _has(r'^\s*[- ]?(?:dollars?|cents?|euros?)\b', text[n.end:])
-
-
-def _amount(text, n):
-    return n.value
+    return _head(_phrase(tail))
 
 
 def _answer(value, expression):
@@ -73,60 +30,6 @@ def _sum(values):
 
 def _expr(values):
     return ' + '.join(format_number(v) for v in values)
-
-
-def _bounds(text, n):
-    before = list(re.finditer(r'[.!?;](?:\s|$)', text[:n.start]))
-    after = re.search(r'[.!?;](?:\s|$)', text[n.end:])
-    return (before[-1].end() if before else 0,
-            n.end + after.start() if after else len(text))
-
-
-def _role(text, n, lower):
-    """Classify a monetary amount using the local transaction clause."""
-    prefix = text[lower:n.start]
-    suffix = text[n.end:]
-    if _has(r'^\s+withdrawal\b', suffix):
-        return 'expense'
-    if _has(r'^\s+deposit\b', suffix):
-        return 'income'
-    if _has(r'\b(?:gave|gives?|given|offered) (?:him|her|them)\s*$|\b(?:is|was) given\s*$', prefix):
-        return 'income'
-    if _has(r'^\s*(?:left(?: over)?|remaining|in change|change)\b', suffix):
-        return 'remaining'
-    if _has(r'\b(?:discount|rebate|coupon|off)\b[^,.;]*$', prefix):
-        return 'discount'
-    if _has(r'\bwith\s*$', prefix) and not _has(r'^\s+(?:bill|note)\b', suffix):
-        return 'balance'
-    if _has(r'\b(?:paid|pays?|pay)\s+(?:using\s+|with\s+)?(?:an?\s+)?$', prefix) and _has(r'^\s+(?:bill|note)\b', suffix):
-        return 'tender'
-    if _has(r'\b(?:using|with|hands?|handed|gives?|gave)\s+(?:an?\s+)?$', prefix) and _has(r'^\s+(?:bill|note)\b', suffix):
-        return 'tender'
-    if _has(r'\b(?:budget|balance) (?:is|was)\s*$', prefix):
-        return 'balance'
-    if _has(r'\b(?:is|are|was|were)\s*$', prefix) and not _has(r'\b(?:salary|earn|earned|income|balance)\b[^.;]*$', prefix):
-        return 'expense'
-    events = list(re.finditer(r'\b(?:costs?|costing|worth|charges?|charged|spends?|spent|'
-                             r'buys?|bought|pays?|paid|contributes?|purchase[sd]?|priced|'
-                             r'has|have|had|going for|saved?|savings|budget|earns?|earned|'
-                             r'salary|gets?|got|receives?|received|makes?|made|sold|sells?)\b', prefix))
-    if events:
-        event = events[-1].group()
-        if event in ('get', 'gets', 'got') and _has(r'\b(?:for|at)\s*$', prefix[events[-1].end():]):
-            return 'expense'
-        if event == 'going for':
-            return 'expense'
-        if event in ('has', 'have', 'had', 'budget', 'savings'):
-            return 'balance'
-        if event in ('save', 'saves', 'saved', 'earn', 'earns', 'earned', 'salary',
-                     'get', 'gets', 'got', 'receive', 'receives', 'received',
-                     'make', 'makes', 'made', 'sold', 'sell', 'sells'):
-            return 'income'
-        return 'expense'
-    if _has(r'\b(?:is|are|was|were)\s*$', prefix):
-        return 'expense'
-    # Lists inherit the transaction from the earlier coordinated clause.
-    return None
 
 
 def _finish(p, terms):
@@ -307,9 +210,9 @@ def _purchases(p, ns):
             count = _sum(c.value for c in matching)
             for c in matching:
                 used.add(id(c))
-            value = _amount(text, n)*count
+            value = n.value*count
         else:
-            value = _amount(text, n)
+            value = n.value
         terms.append((role, value))
     if len(used) != len(counts):
         return None
@@ -354,12 +257,10 @@ def _quantities(p):
         if n.value == 1 and _has(r'^\s+[a-z]+\s+cost(?:s| is)?\b', text[n.end:]):
             continue
         if n.start >= len(p.body) and not _money(text, n) and any(
-                k.value == n.value and _noun(text[k.end:]) == _noun(text[n.end:])
+                k.value == n.value and _same(_phrase(text[k.end:]), _phrase(text[n.end:]))
                 for k in ns):
             continue
-        if _money(text, n) and _has(r'^\s+cents?\b', text[n.end:]):
-            n = replace(n, value=n.value/100)
-        ns.append(n)
+        ns.append(_money_number(text, n))
     return ns
 
 
@@ -650,11 +551,7 @@ def solve(problem):
         return None
     if not _has(r'\b(?:money|dollars?|cents?|pay|paid|spend|spent|costs?|price|earn|earned|make|made|change|collected|discount|paying|payment|lost|profit|savings|save|saved|worth|balance|owe|owes)\b|^how much (?:is|are|was) ', problem.question):
         return None
-    currencies = {n.raw[0] for n in ns if n.kind == 'money'}
-    if _has(r'\bdollars?\b', text):
-        currencies.add('$')
-    if _has(r'\beuros?\b', text):
-        currencies.add('€')
+    currencies = _currencies(problem, ns)
     if len(currencies) > 1:
         return None
     if _has(r'\b(?:equally|evenly|splits?|shared (?!expenses)|average|round trip|there and back)\b', text):
