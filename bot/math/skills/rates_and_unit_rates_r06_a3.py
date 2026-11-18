@@ -453,7 +453,7 @@ def _additive_rates(p, ns, us, ds):
                 if rate>0:
                     return _result(ns[0].value/rate,'{} / ({} - {})'.format(*(_f(n) for n in ns)),p)
     # Redistribution of each explicitly named owner's entire stock.
-    if 2 <= len(ns) <= 6 and len(set(us))==1 and us[0]==asked and not any(ds) and re.search(r'\b(?:equal number|equally)\b',t) and re.search(r'\b(?:share|sharing|redistribute)\b',t):
+    if 2 <= len(ns) <= 6 and len(set(us))==1 and us[0]==asked and not any(ds) and re.search(r'\b(?:equal number|equally)\b',t) and re.search(r'\b(?:share|sharing|redistribute)\b',t) and not re.search(r'\b(?:more|less|fewer|than|twice|half)\b',p.body):
         if all(re.search(r'\b[A-Z][a-z]+ (?:has|had) (?:only )?$',p.text[:n.start]) for n in ns):
             return _result(sum((n.value for n in ns),Fraction(0))/len(ns),'({}) / {}'.format(' + '.join(_f(n) for n in ns),len(ns)),p)
     # A host explicitly shares the total with N invited friends.
@@ -512,7 +512,17 @@ def _partitions(p, ns, us, ds):
                     elif re.search(r'\b(?:buy|buys?|bought)\b[^.!?]*\b(?:additional|more|extra)\b',p.body):
                         sign=1
                     if sign:
-                        return _result((ns[a].value+sign*ns[b].value)/ns[g].value,'({} {} {}) / {}'.format(_f(ns[a]),'+' if sign==1 else '-',_f(ns[b]),_f(ns[g])),p)
+                        divisor=ns[g].value
+                        if us[g] in _TIME:
+                            query_period=re.search(r'\b(?:each|per) (\w+)\b',p.question)
+                            if not query_period:
+                                return None
+                            source,sf=core._measure(us[g])
+                            dest,df=core._measure(_normal(query_period.group(1)))
+                            if source!=dest:
+                                return None
+                            divisor=divisor*sf/df
+                        return _result((ns[a].value+sign*ns[b].value)/divisor,'({} {} {}) / {}'.format(_f(ns[a]),'+' if sign==1 else '-',_f(ns[b]),_f(divisor)),p)
     # A daily physical requirement is repeated for all days of the week.
     if len(ns)==2 and ds[0]==[asked] and not ds[1] and us[0]==us[1] and re.search(r'\bdaily\b',p.body) and re.search(r'\b(?:the|a|one) week\b',p.question):
         return _result(ns[1].value*7/ns[0].value,'{} * 7 / {}'.format(_f(ns[1]),_f(ns[0])),p)

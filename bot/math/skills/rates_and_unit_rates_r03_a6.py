@@ -252,6 +252,10 @@ def _terms(p, ns):
         if i in used or i+1 in used:
             continue
         a, b = ns[i:i+2]
+        # A requested duration is a target, not the denominator of the last
+        # price in the narrative. Never pair quantities across the question.
+        if a.start < len(p.body) <= b.start:
+            continue
         middle = text[a.end:b.start]
         measured = (units[i+1] in ('second', 'minute', 'hour', 'day', 'week')
                     and _has(r'\bin\s*$', middle) and not _has(r'[.!?;]', middle)
@@ -273,6 +277,10 @@ def _terms(p, ns):
 def _chain(p, ns):
     """Multiply/divide a unique fully specified chain, with output conversion."""
     text = p.text.lower()
+    # Successive crews contribute separate worker-time totals; multiplying
+    # their durations and crew counts cannot describe that sum.
+    if _has(r'\bworking for\b[^.!?]*\bthen\b', text):
+        return None
     if _has(r'forth and back|there and back|and then back', text):
         return None
     if _has(r'how long', p.question) and _has(r'\bsame (?:size|job|work)\b', text):
@@ -387,6 +395,8 @@ def _remaining_capacity(p, ns):
 def _stock_change(p, ns):
     """An explicitly changed stock divided by a measured or unit rate."""
     text = p.text.lower()
+    if _has(r'\b(?:twice|thrice|double|triple|times as)\b', text):
+        return None
     if len(ns) not in (3,4) or not _has(r'\b(?:already|knew|started|stopped|more|left|remaining|now|so far)\b', text):
         return None
     us = [_unit(text,n) for n in ns]
