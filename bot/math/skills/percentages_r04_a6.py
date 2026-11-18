@@ -826,6 +826,10 @@ def solve(problem):
         return None
     if _has(r"^(?:i(?: am|'m)|we(?: are|'re))\s+(?:trying|learning|wondering)\b",problem.text.lower()):
         return None
+    from .percentages_r13_a2 import solve as multistage_percentages
+    composed = multistage_percentages(problem)
+    if composed is not None:
+        return composed
     p=_prepare(problem)
     if p is None:
         return None
