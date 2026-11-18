@@ -40,7 +40,7 @@ _BARE_FRACTION = r'(?:half|halves|thirds?|quarters?|fourths?)'
 _WORD_FRACTION = (r'(?:(?:' + _WORD_NUMBER + r')[ -]+(?:halves|quarters|' + _ORDINAL_DENOMINATOR + r's)|'
                   + _DIGIT + r'[ -]+' + _ORDINAL_DENOMINATOR + r's|'
                   + r'(?:one|1|an?)[ -]+' + _DENOMINATOR + '|' + _BARE_FRACTION + ')')
-_SLASH_FRACTION = r'\d+\s*/\s*\d+'
+_SLASH_FRACTION = r'\d+\s*/\s*\d+(?:st|nd|rd|th)?'
 _FRACTION = r'(?:' + _SLASH_FRACTION + '|' + _WORD_FRACTION + ')'
 _MIXED = _CARDINAL + r'(?:\s+and\s+' + _FRACTION + r'|\s+' + _SLASH_FRACTION + ')'
 _VALUE = r'(?:' + _MIXED + '|' + _FRACTION + '|' + _CARDINAL + ')'
@@ -91,7 +91,7 @@ def _denominator(text):
 def _fraction(text):
     if re.fullmatch(_SLASH_FRACTION, text):
         numerator, denominator = text.split('/')
-        return Fraction(int(numerator), int(denominator))
+        return Fraction(int(numerator), int(re.sub(r'(?:st|nd|rd|th)$', '', denominator)))
     parts = _PARTS.fullmatch(text)
     if parts:
         numerator, denominator = parts.groups()

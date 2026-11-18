@@ -297,7 +297,7 @@ def _chain(p, ns):
     # Equal sharing has an explicit denominator in the output dimension.
     denom = ''
     query = re.split(r'\b(?:if|when|after|while|assuming)\b',p.question)[0]
-    m = re.search(r'\b(?:per|each|every|a|an)\s+(?:(?:family|individual)\s+)?([a-z]+)', query)
+    m = re.search(r'(?<!take for )\b(?:per|each|every|a|an)\s+(?:(?:family|individual)\s+)?([a-z]+)', query)
     if m and m.group(1) not in _STOPS:
         denom = _normal(m.group(1))
     target = _term(Fraction(1), asked, (), denominator=denom)

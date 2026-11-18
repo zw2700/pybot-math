@@ -650,7 +650,7 @@ def _grouped_share(p, rates):
         return None
     r = rates[0]
     # Multiplying a count by a per-period rate yields an amount, not a time.
-    if p.question.startswith('how long'):
+    if p.question.startswith(('how long', 'how fast')) or _has(r'\b(?:speed|mph)\b', p.question):
         return None
     if _has(r'\bas (?:many|much)\b', p.body):
         return None

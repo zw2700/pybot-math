@@ -92,7 +92,8 @@ def _result(value, expr, p):
         return None
     currency = 'euros' if re.search(r'€|\beuros?\b', p.text, re.I) else ('pounds' if '£' in p.text else 'dollars')
     label = 'Amount in {}: '.format(currency) if _asked(p) == 'money' else 'Calculation: '
-    return value, label + expr + ' = ' + format_number(value) + '.'
+    unit = ' '+currency if _asked(p) == 'money' else ''
+    return value, label + expr + ' = ' + format_number(value) + unit + '.'
 
 
 def _f(n):
@@ -305,7 +306,7 @@ def _chain(p, ns, us, ds):
         us=['use' if u=='time' else u for u in us]
         atoms=[core._amount(n.value,u,d,_f(n),[i]) for i,(n,u,d) in enumerate(zip(ns,us,ds))]
     query=re.split(r'\b(?:if|when|assuming|since|because)\b',p.question)[0]
-    m=re.search(r'\b(?:each|every|per) (\w+)',query)
+    m=re.search(r'(?<!take for )\b(?:each|every|per) (\w+)',query)
     if m:
         h='use' if m.group(1)=='use' else _head(query[m.start(1):])
         if h and (h not in _STOP or h=='use'):

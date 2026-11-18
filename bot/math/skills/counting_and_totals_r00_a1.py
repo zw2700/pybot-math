@@ -320,6 +320,12 @@ def _group_rate(p):
     N objects in each container; G containers; each container holds N objects.
     """
     text = p.text.lower()
+    # A numbered measurement adjective is a container capacity, not a
+    # count of containers to multiply ("bottles of N-liter water").
+    # Leave the conversion to the rate skills.
+    if any(re.match(r'-(?:liters?|litres?|milliliters?|gallons?|ounces?|pounds?|grams?|kilograms?)\b',
+                    text[n.end:]) for n in p.numbers):
+        return None
     # A quantity "in each of N containers" is itself a rate. Do not
     # mistake it for loose items when another per-container rate follows.
     if _has(r'\beach of\b', text):
@@ -402,6 +408,9 @@ def _daily_groups(p):
         return None
     """An explicit daily amount times an entity count and a duration."""
     text = p.text.lower()
+    if any(re.match(r'-(?:liters?|litres?|milliliters?|gallons?|ounces?|pounds?|grams?|kilograms?)\b',
+                    text[n.end:]) for n in p.numbers):
+        return None  # A capacity conversion must precede a daily total.
     # A subdaily rate needs a dimensional conversion before multiplying by
     # daily operating time; leave it to a skill which reads that rate.
     if _has(r'\b(?:per|each|every|a|an) (?:second|minute|hour)\b', p.body):

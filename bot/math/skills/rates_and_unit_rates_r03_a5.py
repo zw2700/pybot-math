@@ -126,9 +126,12 @@ def _result(value, expression, p=None):
     if value < 0:
         return None
     label = ''
+    currency = 'dollars'
     if p is not None and _question(p) == 'money':
-        label = 'Amount in dollars: '
-    return value, label + expression + ' = ' + format_number(value) + '.'
+        currency = 'pounds' if '£' in p.text else ('euros' if '€' in p.text else 'dollars')
+        label = 'Amount in {}: '.format(currency)
+    unit = ' '+currency if label else ''
+    return value, label + expression + ' = ' + format_number(value) + unit + '.'
 
 
 def _dim(parts):

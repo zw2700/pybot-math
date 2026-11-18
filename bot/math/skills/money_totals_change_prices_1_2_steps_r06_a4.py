@@ -715,6 +715,12 @@ def _stock_value(p, ns):
     if not label or not explicit:
         return None
     first, second = counts
+    # A quoted price for N objects is a batch total. A question about M
+    # objects needs a unit-price conversion, not the value of N+M objects.
+    if (second.start >= len(p.body) and first.start < money[0].start
+            and _has(r'\bcosts?\s*$', t[first.end:money[0].start])
+            and not _has(r'\b(?:each|per|apiece)\b', t[:len(p.body)])):
+        return None
     a, b = _phrase(t[first.end:]), _phrase(t[second.end:])
     if _has(r'^\s+more\b', t[second.end:]) and _has(r'\b(?:buy|buys|bought)\s*$', t[:second.start]):
         if not _has(r'\b(?:all|total|worth)\b', q):
