@@ -57,8 +57,14 @@ class CountingTests(unittest.TestCase):
             self.assertEqual(answer(text), rows*size+extra)
 
     def test_fractional_group_size(self):
-        self.assertEqual(answer('A cook bought 7 bags of rice. Each bag weighs 2.5 kilograms. '
-                                'How many kilograms did the cook buy altogether?'), Fraction(35, 2))
+        for size, expected in [('2.5', Fraction(35, 2)),
+                               ('three eighths', Fraction(21, 8)),
+                               ('2 and a half', Fraction(35, 2)),
+                               ('2.5 thousand', Fraction(17500))]:
+            with self.subTest(size=size):
+                self.assertEqual(answer(
+                    'A cook bought 7 bags of rice. Each bag weighs {} kilograms. '
+                    'How many kilograms did the cook buy altogether?'.format(size)), expected)
 
     def test_daily_groups_and_weeks(self):
         self.assertEqual(answer('A keeper has 8 goats. Each goat drinks 3 liters of water a day. '

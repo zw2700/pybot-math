@@ -38,7 +38,11 @@ def _load_skills():
     for entry in sorted(pkgutil.iter_modules(skills.__path__), key=lambda item: item.name):
         if entry.name.startswith('_'):
             continue
-        module = importlib.import_module(skills.__name__ + '.' + entry.name)
+        try:
+            module = importlib.import_module(skills.__name__ + '.' + entry.name)
+        except Exception:
+            # A broken optional skill must not disable the entire math module.
+            continue
         solve = getattr(module, 'solve', None)
         if callable(solve):
             solvers.append(solve)
@@ -50,12 +54,18 @@ def solve(text):
     if problem is None:
         return None
     for skill in _SOLVERS:
-        result = skill(problem)
-        if result is None:
+        try:
+            result = skill(problem)
+            if result is None:
+                continue
+            answer, working = result
+            answer = Fraction(answer)
+            reply = '{}{} Answer: {}'.format(_quantity_context(problem), working.strip(), format_number(answer))
+        except Exception:
+            # As with runtime modules, one reader's unsupported input or invalid
+            # result must not prevent independent readers from understanding it.
             continue
-        answer, working = result
-        answer = Fraction(answer)
-        return '{}{} Answer: {}'.format(_quantity_context(problem), working.strip(), format_number(answer)).strip()
+        return reply.strip()
     return None
 
 
