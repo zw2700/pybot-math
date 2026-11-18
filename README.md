@@ -6,6 +6,41 @@
   </a>
 </div>
 
+# PyBot does math
+
+This is a fork of [huggingface/pybot](https://github.com/huggingface/pybot) that taught PyBot
+grade-school math word problems, still with no weights and no training: just Python rules,
+written by rounds of 6 parallel Codex agents over about a day and a half.
+
+On the [GSM8K](https://github.com/openai/grade-school-math) test set (1,319 problems), PyBot
+went from **0.9% to 15.2%**. Every rule was kept only if it raised the score on the held-out
+test set without changing any of PyBot's replies to 1,000 ordinary chat prompts; the agents
+never saw the test set.
+
+![PyBot's GSM8K test accuracy by training round, against LLMs answering 0-shot with no chain of thought](assets/gsm8k_progress.png)
+
+For comparison, LLMs answering directly, 0-shot, with no chain of thought: Llama 2 70B 11.6%,
+PaLM 540B 12.5%, GPT-3.5 (text-davinci-003) 12.6%, ChatGPT 23.8%
+([Kojima et al. 2022](https://arxiv.org/abs/2205.11916),
+[Qin et al. 2023](https://arxiv.org/abs/2302.06476),
+[Xu et al. 2023](https://arxiv.org/abs/2309.06275)). With chain-of-thought prompting, LLMs
+score far higher.
+
+```sh
+git clone https://github.com/zw2700/pybot-math
+cd pybot-math
+python pybot.py -p "Tom has 3 boxes with 12 apples each. He gives away 7 apples. How many apples does he have left?"
+# Using boxes, apples: ((3) x 12) - (7) = 29. Answer: 29
+```
+
+The math lives in `bot/math/` (number reading, problem parsing and one file of rules per skill)
+and `bot/modules/word_problem.py`. The loop that wrote it, with its gates and the agents'
+brief, is in [`harness/`](harness/). Each `rNN-aK` commit is one agent's accepted patch.
+
+The original PyBot README follows.
+
+---
+
 # PyBot: can Python be a chatbot?
 
 LLMs drive today’s chatbots and agents, but chatbots long predate them. Sixty years ago, [ELIZA](https://en.wikipedia.org/wiki/ELIZA) held conversations by matching patterns in what the user typed and answering with predefined templates. It could seem insightful, but its repertoire was narrow, and expanding it meant writing more rules by hand. How far could a rule-based chatbot go if a swarm of agents did that work instead?
