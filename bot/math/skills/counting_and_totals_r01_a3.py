@@ -164,6 +164,8 @@ def _inventory(p):
     """One starting inventory, additions/removals, optionally items per survivor."""
     ns = p.numbers
     text = p.text.lower()
+    if _has(r'\b(?:dozens?|pairs?)\b', text):
+        return None  # Convert the grouped count before updating this ledger.
     # A proper fraction followed by a possessive/of-relation is a share of
     # inventory, rather than a literal count to add or subtract.
     if any(0 < n.value < 1 and re.match(r'\s+(?:of|his|her|their|the)\b', text[n.end:])

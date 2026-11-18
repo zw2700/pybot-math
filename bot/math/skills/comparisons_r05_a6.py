@@ -215,6 +215,8 @@ def _normalise(text):
 
 
 def _adapted_chain(p):
+    if re.search(r'\b[a-z]+ [A-Z] (?:has|contains|holds)\b',p.text):
+        return None  # Letter-labelled containers need their own quantity graph.
     text = _normalise(p.text)
     scale = Fraction(1)
     # Convert only the requested output unit; intermediate comparisons share a unit.

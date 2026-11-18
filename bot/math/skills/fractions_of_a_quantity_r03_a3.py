@@ -198,6 +198,9 @@ def _fraction_ledger(p, rates):
 
 def _share(p, rates):
     """One counted whole/part and one or two explicitly described shares."""
+    component = re.search(r'\bnumber of ([a-z]+) of\b',p.question)
+    if component and not _has(r'\b'+re.escape(component.group(1))+r'\b',p.body):
+        return None  # Counting components needs a stated conversion.
     amounts = [n for n in p.numbers if n not in rates]
     if len(amounts) != 1 or not 1 <= len(rates) <= 2:
         return None

@@ -673,12 +673,20 @@ def _production_remainder(p):
     if not _has(r'\b(?:daily|each day|every day|per day|a day)\b', text[rate.end:duration.start]):
         return None
     losses = []
-    for n in ns[2:]:
+    opening = []
+    for i,n in enumerate(ns[2:],2):
+        before = text[ns[i-1].end:n.start]
+        if re.search(r'\b(?:started|began) [^.!?;]*with\s*$',before):
+            if _unit(text[n.end:]) != asked or opening:
+                return None
+            opening.append(n.value)
+            continue
         if _unit(text[n.end:]) != asked or not _has(r'\b(?:gives? away|gave|stolen|used|lost|sold)\b', _sentence(text,n)):
             return None
         losses.append(n.value)
-    return _answer(rate.value*duration.value-_sum(losses),
-                   '{} x {} - ({})'.format(format_number(rate.value),format_number(duration.value),_fmt(losses)))
+    return _answer(rate.value*duration.value+_sum(opening)-_sum(losses),
+                   '{} x {}{} - ({})'.format(format_number(rate.value),format_number(duration.value),
+                       ' + '+_fmt(opening) if opening else '',_fmt(losses)))
 
 
 def _mixed_daily_time(p):

@@ -437,6 +437,9 @@ def _coin_share(p):
 
 def _fraction_subsets(p):
     """Reuse subset selection semantics: a fraction and a percent are ratios."""
+    component = re.search(r'\bnumber of ([a-z]+) of\b',p.question)
+    if component and not _has(r'\b'+re.escape(component.group(1))+r'\b',p.body):
+        return None  # Counting components needs a stated conversion.
     ns = p.numbers
     fs = [n for n in ns if 0 < n.value < 1 and n.kind != 'money']
     if not fs or _has(r'\b(?:times|as many|as much|that amount|per|each|more|less|than)\b', p.text.lower()):

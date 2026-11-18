@@ -98,6 +98,10 @@ def _grouped(p):
     """Join count -> per-group quantities, with dimensional time conversions."""
     ns = p.numbers
     text = p.text.lower()
+    if _has(r'\btimes more\b', text):
+        return None  # A relative rate change is not an independent addend.
+    if _has(r'\btimes (?:more|as)\b', text):
+        return None  # Relative multipliers are not independent rate addends.
     if _has(r'\bother (?:days|weeks|months|hours)\b', p.question):
         return None  # A stated whole minus completed groups needs subtraction.
     if not 3 <= len(ns) <= 8 or any(n.kind != 'number' for n in ns):
@@ -814,7 +818,7 @@ def _daily_week(p):
     text=p.text.lower()
     if len(ns) not in (2,3) or not _has(r'\bweek\b',p.question):
         return None
-    if _has(r'\b(?:more|less|left|than|half|twice|not|weekday|weekend)\b',text):
+    if _has(r'\b(?:more|less|left|than|half|twice|not|weekdays?|weekends?)\b',text):
         return None
     if len(ns)==3:
         if ns[-1].start<len(p.body) or ns[-1].value!=1 or _unit(p,ns[-1])!='week':

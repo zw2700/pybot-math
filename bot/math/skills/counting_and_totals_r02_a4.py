@@ -126,6 +126,8 @@ _REMOVE = set(('lost loses ate eats eat used uses gave given gives stole steal s
 
 
 def _stock(p):
+    if _has(r'\b(?:dozens?|pairs?)\b', p.text.lower()):
+        return None  # These are grouped units rather than individual items.
     ns = p.numbers
     text = p.text.lower()
     if (not 2 <= len(ns) <= 5 or any(n.start >= len(p.body) for n in ns)

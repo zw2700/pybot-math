@@ -522,6 +522,8 @@ def _different_owner(p):
 def _ledger(p):
     """A single stock, with explicit additions/removals and no rates/relations."""
     text = p.text.lower()
+    if _has(r'\b(?:dozens?|pairs?)\b', text):
+        return None  # Group counts need conversion to individual items.
     if _has(r'\b(?:refill|fill (?:up )?(?:the |an? )?(?:entire )?tank)\b', p.question):
         return None  # Capacity minus remaining stock is a separate calculation.
     if _has(r'\b(?:get|gets|got) off\b', p.body):
