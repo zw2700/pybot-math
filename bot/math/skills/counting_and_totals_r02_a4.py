@@ -7,6 +7,7 @@ import re
 from fractions import Fraction
 
 from ..numbers import format_number
+from ._counting_common import answer as _answer
 from .counting_and_totals_r00_a1 import _different_owner
 from .counting_and_totals_r01_a3 import _STOP
 from .rates_and_unit_rates_r01_a4 import _singular
@@ -20,12 +21,6 @@ def _normal_unit(word):
     word = _singular(word)
     return {'package': 'pack', 'morning': 'day', 'kg': 'kilogram',
             'ml': 'milliliter', 'cm': 'centimeter', 'km': 'kilometer'}.get(word, word)
-
-
-def _answer(value, expression):
-    if value < 0:
-        return None
-    return value, expression + ' = ' + format_number(value) + '.'
 
 
 _STOPS = _STOP | set(('quit leave leaves remain remains got get came come into '
@@ -305,7 +300,7 @@ def _equal_shares_with_owner(p):
     total, companions = ns
     if not _has(r'\b(?:divide|split|share)\s+(?:it\s+)?equally with (?:his|her|their|my)\s*$', text[:companions.start]):
         return None
-    if not _has(r'^\s+(?:siblings|friends|brothers|sisters|classmates|colleagues)\b', text[companions.end:]):
+    if not _head(text[companions.end:]) or companions.value <= 0:
         return None
     query_unit = _asked(p)
     explicit_unit = re.search(r'\bin (?:the )?(?:square )?([a-z]+)', p.question)

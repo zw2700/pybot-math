@@ -7,17 +7,13 @@ import re
 from fractions import Fraction
 
 from ..numbers import format_number
+from ._counting_common import answer as _answer, products as _products
+from ._counting_groups import container_relations
 from .counting_and_totals_r00_a1 import _singular, _different_owner
 
 
 def _has(pattern, text):
     return re.search(pattern, text) is not None
-
-
-def _answer(value, expression):
-    if value < 0:
-        return None
-    return value, expression + ' = ' + format_number(value) + '.'
 
 
 _STOP = set(('and or of in on at for to from with as by than before after during '
@@ -118,6 +114,13 @@ def _grouped_total(p):
     if _has(r'\b(?:more|less|fewer|than|left|remain|remaining|except|not|lost|loses|sold|'
             r'half|twice|double|average|percent|cost|costs|price)\b', text):
         return None
+    if any(0 < n.value < 1 and re.match(r'\s+of\b', text[n.end:]) for n in ns):
+        return None
+    if _has(r'\bto (?:make|produce|prepare|bake)\b', p.body):
+        return None  # Recipe input/output proportions are not loose addends.
+    if _has(r'\b(?:in|for|during|over) (?:a|an|one|the entire|the whole) '
+            r'(?:second|minute|hour|day|week|month|year)\b', p.question):
+        return None  # An implicit duration still needs a schedule relation.
     units = [_unit(p, n) for n in ns]
     for i in range(len(ns)-1):
         if (not text[ns[i].end:ns[i+1].start].strip()
@@ -125,96 +128,30 @@ def _grouped_total(p):
             units[i] = units[i+1]
     if not all(units):
         return None
-    edges = set()
-    # N items in each group; each group produces N items. The nearest
-    # quantity in the clause is the rate, and the noun identifies its input.
-    for m in re.finditer(r'\b(?:each|every|per)\s+([a-z]+)', p.body):
-        group = _singular(m.group(1))
-        if group in ('to', 'and', 'for'):
-            continue  # postposed "N minutes each to dry"
-        if group not in ('of', 'having'):
-            phrase = _phrase(text[m.start(1):])
-            if not phrase:
-                return None
-            group = phrase[-1]
-        left = max([x.end() for x in re.finditer(r'[.;!?]', text[:m.start()])] or [0])
-        right_match = re.search(r'[.;!?]', text[m.end():])
-        right = m.end() + right_match.start() if right_match else len(p.body)
-        candidates = [i for i, n in enumerate(ns) if left <= n.start < right]
-        if not candidates:
-            return None
-        ri = min(candidates, key=lambda i: min(abs(ns[i].end-m.start()), abs(ns[i].start-m.end())))
-        # "each having N" refers back to the immediately preceding group.
-        if group == 'having':
-            earlier = [i for i in candidates if ns[i].end < m.start()]
-            later = [i for i in candidates if ns[i].start > m.end()]
-            if not earlier or not later:
-                return None
-            ci, ri = earlier[-1], later[0]
-        elif group == 'of':
-            # "in each of the park's N trees": the following quantity
-            # counts the group, while the preceding one is its content.
-            earlier = [i for i in candidates if ns[i].end < m.start()]
-            later = [i for i in candidates if ns[i].start > m.end()]
-            if not earlier or not later:
-                return None
-            ri, ci = earlier[-1], later[0]
-        else:
-            counts = [i for i, u in enumerate(units) if i != ri and u == group]
-            if len(counts) != 1:
-                return None
-            ci = counts[0]
-        if ci == ri:
-            return None
-        edges.add((ci, ri))
-    # An adjacent count and a compound measurement: "three 5-minute talks".
-    for i in range(len(ns)-1):
-        if (not text[ns[i].end:ns[i+1].start].strip()
-                and re.match(r'-[a-z]+\b', text[ns[i+1].end:])):
-            edges.add((i, i+1))
-            units[i] = units[i+1]
-    # "N coats that take M minutes each" has a postposed 'each'.
-    for m in re.finditer(r'\beach\b', p.body):
-        if re.match(r'\s+(?!to\b|and\b|for\b)[a-z]+', text[m.end():]):
-            continue
-        previous = [i for i, n in enumerate(ns) if n.end <= m.start()]
-        if len(previous) >= 2:
-            ri, ci = previous[-1], previous[-2]
-            segment = text[ns[ci].end:ns[ri].start]
-            if _has(r'\b(?:takes?|take|weighs?|weigh|contains?|holds?)\b', segment):
-                edges.add((ci, ri))
-    if not edges:
+    def head(tail):
+        words = _phrase(tail)
+        return words[-1] if words else ''
+
+    relations = container_relations(p, head, units)
+    if relations is None:
         return None
-    # A quantity has at most one source and one destination; this excludes
-    # ambiguous overlapping rates and repeated consumption of the same count.
-    if len({a for a, b in edges}) != len(edges) or len({b for a, b in edges}) != len(edges):
+    parents, references = relations
+    if not parents or references:
         return None
-    parents = {b: a for a, b in edges}
-    consumed = {a for a, b in edges}
+    consumed = set(parents.values())
     roots = [i for i in range(len(ns)) if i not in consumed]
     asked = _asked(p)
     if not roots or not asked:
         return None
     if any(units[i] != asked for i in roots):
         return None
-    seen = set()
-
-    def value(i):
-        if i in seen:
-            raise ValueError('Cyclic group relation')
-        seen.add(i)
-        if i in parents:
-            count, expression = value(parents[i])
-            return ns[i].value * count, expression + ' x ' + format_number(ns[i].value)
-        return ns[i].value, format_number(ns[i].value)
-
-    try:
-        terms = [value(i) for i in roots]
-    except ValueError:
+    terms = _products([n.value for n in ns],
+                      {b: (a, Fraction(1)) for b, a in parents.items()},
+                      order='flat')
+    if terms is None:
         return None
-    if len(seen) != len(ns):
-        return None
-    return _answer(sum((v for v, _ in terms), Fraction(0)), ' + '.join(e for _, e in terms))
+    return _answer(sum((v for _, v, _ in terms), Fraction(0)),
+                   ' + '.join(e for _, _, e in terms))
 
 
 _EVENT = re.compile(r'\b(has|have|had|makes?|made|ordered|bought|buys?|found|received|'

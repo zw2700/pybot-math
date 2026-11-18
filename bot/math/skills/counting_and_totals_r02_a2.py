@@ -7,6 +7,7 @@ import re
 from fractions import Fraction
 
 from ..numbers import format_number
+from ._counting_common import answer as _answer, products as _products
 from .counting_and_totals_r00_a1 import _singular
 from .rates_and_unit_rates_r01_a4 import _rates, _convert, _sentence
 
@@ -69,17 +70,13 @@ def _conversion(value, source, dest):
     return None
 
 
-def _answer(value, expression):
-    if value < 0:
-        return None
-    return value, expression + ' = ' + format_number(value) + '.'
-
-
 def _quantity_list(p):
     """Exclude only an explicit enumeration of the following measurements."""
     ns = list(p.numbers)
-    if ns and _has(r'^\s+(?:different )?(?:bottles|containers|measurements)\b', p.text.lower()[ns[0].end:]):
-        if _has(r'\bfollowing\b', p.body[ns[0].end:]) and ns[0].value == len(ns)-1:
+    if len(ns) > 1 and _noun(p.text.lower()[ns[0].end:]):
+        introduction = p.body[ns[0].end:ns[1].start]
+        if (_has(r'\bfollowing\b', introduction) and ns[0].value == len(ns)-1
+                and _conversion(Fraction(1), _unit(p, ns[0]), _asked(p)) is None):
             ns = ns[1:]
     return ns
 
@@ -185,27 +182,8 @@ def _grouped(p):
     # Converting bare days to hours would count the whole day as work.
     if any(i not in parents and units[i] in rates.values() for i in roots):
         return None
-    seen = set()
-
-    def evaluate(i, visiting):
-        if i in visiting:
-            raise ValueError('cyclic relation')
-        seen.add(i)
-        v, expression = ns[i].value, format_number(ns[i].value)
-        if i in parents:
-            ci, factor = parents[i]
-            c, e = evaluate(ci, visiting | {i})
-            v *= c * factor
-            expression = '(' + e + ') x ' + expression
-            if factor != 1:
-                expression += ' x ' + format_number(factor)
-        return v, expression
-
-    try:
-        terms = [(i,) + evaluate(i, set()) for i in roots]
-    except ValueError:
-        return None
-    if len(seen) != len(ns):
+    terms = _products([n.value for n in ns], parents, shared=True)
+    if terms is None:
         return None
     asked = _asked(p)
     # Disjoint group totals, possibly converting the final output unit.
@@ -768,13 +746,15 @@ def _same_amount_group(p):
     if len(ns)!=3 or not _has(r'\bsame amount as (?:her|him)\b',p.body):
         return None
     count,rate,others=ns
-    if _unit(p,others) not in ('friend','classmate','colleague','sibling'):
+    companions = _unit(p, others)
+    if not companions or others.start >= len(p.body):
         return None
     if not _has(r'\beach '+re.escape(_unit(p,count))+r' (?:holds?|contains?|has)\s*$',text[:rate.start]):
         return None
     if _unit(p,rate)!=_asked(p) or not _has(r'\b(?:in all|total|together|altogether)\b',p.question):
         return None
-    if not _has(r'\band (?:her|his|their) friends\b',p.question):
+    query_group = re.search(r'\band (?:her|his|their)\s+(.+)', p.question)
+    if not query_group or _noun(query_group.group(1)) != companions:
         return None
     return _answer(count.value*rate.value*(others.value+1),'{} x {} x ({} + 1)'.format(*map(format_number,(count.value,rate.value,others.value))))
 

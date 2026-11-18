@@ -7,7 +7,9 @@ import re
 from fractions import Fraction
 
 from ..numbers import format_number
+from ._counting_common import answer as _answer, total as _sum, fmt as _fmt, tokenize as _token, products as _products
 from ..problem import Problem
+from ._counting_groups import container_relations
 from .counting_and_totals_r00_a1 import _different_owner
 from .counting_and_totals_r02_a4 import _normal_unit
 from .counting_and_totals_r01_a3 import _phrase
@@ -18,22 +20,8 @@ def _has(pattern, text):
     return re.search(pattern, text) is not None
 
 
-def _sum(values):
-    return sum(values, Fraction(0))
-
-
-def _fmt(values, op=' + '):
-    return op.join(format_number(v) for v in values)
-
-
-def _answer(value, expression):
-    if value < 0:
-        return None
-    return value, expression + ' = ' + format_number(value) + '.'
-
-
 def _unit(tail):
-    compound = re.match(r'\s*-(words?|pages?|minutes?|hours?|ounces?|liters?|meters?)\b',tail)
+    compound = re.match(r'\s*-([a-z]+)\b', tail)
     if compound:
         return _normal_unit(compound.group(1))
     if re.match(r'\s*leaves\b',tail):
@@ -63,13 +51,6 @@ def _tails(p):
     ns = p.numbers
     text = p.text.lower()
     return [text[n.end:ns[i+1].start if i+1 < len(ns) else len(p.body)] for i, n in enumerate(ns)]
-
-
-def _token(p):
-    text = p.text.lower()
-    for i, n in reversed(list(enumerate(p.numbers))):
-        text = text[:n.start] + 'Q{}'.format(i) + text[n.end:]
-    return text
 
 
 def _asked_label(p):
@@ -113,35 +94,10 @@ def _nested_groups(p):
     units = [_unit(t) for t in tails]
     if not all(units):
         return None
-    parents = {}
-    denominator_indices = set()
-    for i, n in enumerate(ns):
-        before = re.split(r'[.!?;]', text[:n.start])[-1]
-        after = re.split(r'[.!?;]|,? and\b', tails[i])[0]
-        group = None
-        m = re.search(r'\b(?:each|every) ([a-z]+) (?:[a-z]+ ){0,2}(?:has|have|holds?|contains?|uses?|needs?|opened|carries|carry|makes?)\s*$',before)
-        if m:
-            group = _normal_unit(m.group(1))
-        m = re.search(r'\bin each ([a-z]+),? (?:he |she |they |it )?(?:opened|placed|put|has|holds|contains)\s*$',before)
-        if m:
-            group = _normal_unit(m.group(1))
-        m = re.search(r'\b(?:per|each|every|in a single|in single|in a|on a baking|on a|in one) ([a-z]+)\b',after)
-        if m and m.group(1) not in ('with','having','of','one'):
-            group = _normal_unit(m.group(1))
-        # "N tanks with a capacity of M liters" explicitly nests contents.
-        if i and re.fullmatch(r'\s+[a-z]+ (?:with|having) (?:a )?capacity of\s+',text[ns[i-1].end:n.start]):
-            group = units[i-1]
-        if i and re.fullmatch(r'\s+[a-z]+,? each (?:with|having)\s+',text[ns[i-1].end:n.start]):
-            group = units[i-1]
-        # "M objects in one row" has an explicit denominator quantity.
-        if i+1 < len(ns) and re.fullmatch(r'\s+[a-z]+ in\s+',tails[i]) and ns[i+1].value == 1:
-            group = units[i+1]
-            denominator_indices.add(i+1)
-        if group:
-            matches = [j for j,u in enumerate(units) if j != i and u == group and j not in denominator_indices]
-            if len(matches) != 1:
-                return None
-            parents[i] = matches[0]
+    relations = container_relations(p, _unit, units)
+    if relations is None:
+        return None
+    parents, denominator_indices = relations
     active = set(range(len(ns))) - denominator_indices
     roots = active - set(parents.values())
     if len(roots) != 1 or len(parents) != len(active)-1:
@@ -149,21 +105,13 @@ def _nested_groups(p):
     root = next(iter(roots))
     if _asked(p) != units[root] or not _matches_label(p,tails[root]):
         return None
-    visited = set()
-    i = root
-    factors = []
-    while i not in visited:
-        visited.add(i)
-        factors.append(ns[i].value)
-        if i not in parents:
-            break
-        i = parents[i]
-    if visited != active:
+    terms = _products([n.value for n in ns],
+                      {i: (j, Fraction(1)) for i, j in parents.items()},
+                      active=active, order='rate_first')
+    if terms is None or len(terms) != 1:
         return None
-    value = Fraction(1)
-    for factor in factors:
-        value *= factor
-    return _answer(value, _fmt(factors,' x '))
+    _, value, expression = terms[0]
+    return _answer(value, expression)
 
 
 _REMOVE = r'took|ate|eats?|lost|loses?|sold|sells?|used|uses?|gave|gives?|removed|broke|taken|takes?'
@@ -715,7 +663,6 @@ def _uniform_leftover(p):
     packs = total/capacity.value
     rounded = -(-packs.numerator//packs.denominator)
     return _answer(rounded*capacity.value-total,'{} x {} - {}'.format(rounded,format_number(capacity.value),format_number(total)))
-
 
 
 def _grammatical_numbers(p):

@@ -7,16 +7,11 @@ import re
 from fractions import Fraction
 
 from ..numbers import format_number
+from ._counting_common import answer as _result
 
 
 def _has(pattern, text):
     return re.search(pattern, text, re.I) is not None
-
-
-def _result(answer, expression):
-    if answer < 0:
-        return None
-    return answer, expression + ' = ' + format_number(answer) + '.'
 
 
 def _f(value):

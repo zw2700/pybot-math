@@ -7,7 +7,9 @@ import re
 from fractions import Fraction
 
 from ..numbers import format_number
+from ._counting_common import answer as _answer, total as _sum, fmt as _fmt, tokenize as _tokenize, products as _products
 from ..problem import Problem
+from ._counting_groups import container_relations
 from .counting_and_totals_r00_a1 import _different_owner
 from .counting_and_totals_r02_a4 import _head, _asked as _base_asked, _normal_unit
 from .rates_and_unit_rates_r01_a4 import _convert, _sentence
@@ -15,20 +17,6 @@ from .rates_and_unit_rates_r01_a4 import _convert, _sentence
 
 def _has(pattern, text):
     return re.search(pattern, text) is not None
-
-
-def _answer(value, expression):
-    if value < 0:
-        return None
-    return value, expression + ' = ' + format_number(value) + '.'
-
-
-def _sum(values):
-    return sum(values, Fraction(0))
-
-
-def _fmt(values, op=' + '):
-    return op.join(format_number(v) for v in values)
 
 
 def _unit(tail):
@@ -57,13 +45,6 @@ def _other_owner(p):
     query=re.search(r'\b(?:does|did|will|can) ([A-Z][a-z]+)\b',p.text[len(p.body):])
     owners=re.findall(r'\b([A-Z][a-z]+) (?:bought|purchased|ordered|collected|had|has|harvests|makes)\b',p.text[:p.numbers[0].start])
     return bool(query and owners and query.group(1)!=owners[-1])
-
-
-def _tokenize(p):
-    text = p.text.lower()
-    for i, n in reversed(list(enumerate(p.numbers))):
-        text = text[:n.start] + 'Q{}'.format(i) + text[n.end:]
-    return text
 
 
 _TIME = {'second', 'minute', 'hour', 'day', 'week', 'month', 'year'}
@@ -156,28 +137,10 @@ def _rate_chain(p):
         prefix = text[:ns[root].start] if root < len(ns) else ''
         if not asked or not re.search(r'\b'+re.escape(asked)+r'\s+of\s*$', prefix):
             return None
-    seen = set()
-
-    def evaluate(i):
-        if i in seen:
-            raise ValueError('cyclic rate')
-        seen.add(i)
-        value = values[i]
-        expression = format_number(value)
-        if i in parents:
-            j, factor = parents[i]
-            other, working = evaluate(j)
-            value *= other * factor
-            expression += ' x (' + working + ')'
-            if factor != 1:
-                expression += ' x ' + format_number(factor)
-        return value, expression
-    try:
-        value, expression = evaluate(root)
-    except ValueError:
+    terms = _products(values, parents, order='rate_first')
+    if terms is None or len(terms) != 1:
         return None
-    if len(seen) != len(values):
-        return None
+    _, value, expression = terms[0]
     return _answer(value, expression)
 
 
@@ -462,7 +425,9 @@ def _host_supply(p):
     if len(ns) != 3 or not _has(r'\bincluding (?:himself|herself|myself|the host)\b', p.body):
         return None
     guests, servings, size = ns
-    if _unit(text[guests.end:]) not in ('guest', 'friend'):
+    if (not _unit(text[guests.end:])
+            or not re.search(r'\b(?:invit(?:es?|ed|ing)|host(?:s|ed|ing)?|'
+                             r'welcom(?:es?|ed|ing))\s*$', text[:guests.start])):
         return None
     if not _has(r'\b(?:everyone|each person|every person)\b', text[guests.end:servings.start]):
         return None
@@ -843,31 +808,17 @@ def _nested_containers(p):
         return None
     if _has(r'\b(?:than|more|fewer|less|half|twice|lost|gave|sold|left|remaining|percent|per)\b',text):
         return None
-    token=_tokenize(p)
     units=[_unit(text[n.end:]) for n in ns]
     for i,n in enumerate(ns):
         m=re.search(r'\bnumber of ([a-z]+)(?: [a-z ]+)? is\s*$',text[:n.start])
         if m:
             units[i]=_normal_unit(m.group(1))
-    parents={}
-    implicit=set()
-    patterns=[r'\b(a|an|one|each) ([a-z-]+)(?: on [a-z ]+)? (?:has|have|holds?|contains?) Q(\d+)',
-              r'\b(each) of (?:the )?([a-z-]+) (?:has|have|holds?|contains?) Q(\d+)']
-    for pattern in patterns:
-        for m in re.finditer(pattern,token):
-            article,word,index=m.groups();i=int(index)
-            group=_unit(' '+word)
-            candidates=[j for j,u in enumerate(units) if j!=i and u==group]
-            if len(candidates)==1:
-                parents[i]=candidates[0]
-            elif not candidates and article in ('a','an','one'):
-                implicit.add(i)
-            else:
-                return None
-    for m in re.finditer(r'Q(\d+) [a-z-]+,? each (?:having|with) Q(\d+)',token):
-        a,b=map(int,m.groups());parents[b]=a
-    for m in re.finditer(r'Q(\d+) [a-z-]+ with Q(\d+) [a-z-]+ each',token):
-        a,b=map(int,m.groups());parents[b]=a
+    relations = container_relations(p, _unit, units, singular=True, postposed=False)
+    if relations is None:
+        return None
+    parents, references = relations
+    if references:
+        return None
     if len(parents)!=len(ns)-1 or len(set(parents.values()))!=len(parents):
         return None
     roots=set(range(len(ns)))-set(parents.values())
@@ -876,14 +827,11 @@ def _nested_containers(p):
     root=next(iter(roots))
     if units[root]!=_asked(p):
         return None
-    seen=set();index=root;value=Fraction(1)
-    while index not in seen:
-        seen.add(index);value*=ns[index].value
-        if index not in parents:
-            break
-        index=parents[index]
-    if len(seen)!=len(ns) or index in parents:
+    terms = _products([n.value for n in ns],
+                      {i: (j, Fraction(1)) for i, j in parents.items()})
+    if terms is None or len(terms) != 1:
         return None
+    _, value, _ = terms[0]
     sides=2 if _has(r'\b(?:each opposite side|both sides)\b',text) else 1
     return _answer(value*sides,_fmt([n.value for n in ns]+([Fraction(2)] if sides==2 else []),' x '))
 
@@ -1296,8 +1244,8 @@ def solve(problem):
                  _shared_rate_difference, _ratio_groups, _equal_share_subgroup,
                  _rectangle_area, _grouped_partition, _converted_inventory,
                  _production_remainder, _mixed_daily_time, _weekday_schedule,
-                 _square_rectangle, _overlap, _category_difference, _dozen_sum,
-                 _nested_containers, _dozens, _shared_rate_sum,
+                 _square_rectangle, _overlap, _category_difference,
+                 _nested_containers, _shared_rate_sum,
                  _parallel_daily_groups, _ratio_length, _comparison_categories,
                  _qualified_rates, _past_age_sum, _future_relative_age,
                  _box_volume_difference, _multiple_group_contents,
