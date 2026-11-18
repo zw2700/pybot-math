@@ -6,18 +6,10 @@ the direction of the relation, and the requested part before doing arithmetic.
 import re
 from fractions import Fraction
 
+from ._fractions_common import _has, _answer
+from ._percent_common import category_percentage as _asked_percentage
 from ..numbers import format_number
 from .counting_and_totals_r00_a1 import _singular, _sentence
-
-
-def _has(pattern, text):
-    return re.search(pattern, text) is not None
-
-
-def _answer(value, expression):
-    if value < 0:
-        return None
-    return value, expression + ' = ' + format_number(value) + '.'
 
 
 def _calc(a, op, b):
@@ -419,41 +411,6 @@ def _successive_changes(p, ns):
     if any(f <= 0 for f in factors):
         return None
     return _calc(amounts[0].value*factors[0], '*', factors[1])
-
-
-def _asked_percentage(p, ns):
-    """Express a selected count as a percentage of disjoint category counts."""
-    if not _has(r'^what (?:is the )?percent(?:age)?\b', p.question):
-        return None
-    if any(n.kind == 'percent' for n in ns) or not 2 <= len(ns) <= 4:
-        return None
-    text = p.text.lower()
-    if _has(r'\b(?:difference|average|taller|shorter|increase|decrease)\b', p.question):
-        return None
-    if any(n.start >= len(p.body) for n in ns):
-        return None
-    if _has(r'\b(?:each|per|every|times|twice|ate|eat|eats|adds?|added|lost|loses|sold|removed|more|fewer|difference|average)\b', p.body):
-        return None
-    labels = []
-    for n in ns:
-        after = re.split(r'[,.;!?]|\band\b', text[n.end:])[0]
-        before = re.split(r'[,.;!?]|\band\b', text[:n.start])[-1]
-        owner = re.search(r'\b([a-z]+)\s+(?:has |have |had )?(?:won|scored|made|makes|collected)\s*$', before)
-        labels.append(_words(after) | ({owner.group(1)} if owner else set()))
-    common = set.intersection(*labels)
-    targets = [i for i, label in enumerate(labels) if (label-common) & _words(p.question)]
-    if len(targets) != 1:
-        return None
-    selected = ns[targets[0]].value
-    total = sum((n.value for n in ns), Fraction(0))
-    totals = [i for i, n in enumerate(ns) if _has(r'\btotal\b', re.split(r'[.;!?]', text[n.end:])[0])]
-    if totals:
-        if len(totals) != 1 or totals[0] == targets[0]:
-            return None
-        total = ns[totals[0]].value
-    if total <= 0 or selected > total:
-        return None
-    return _answer(100*selected/total, 'Selected count / total count x 100')
 
 
 def _quantity_adjustment(p, ns):

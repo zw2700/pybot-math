@@ -6,20 +6,12 @@ abstain on unrelated counts, ambiguous percentage bases and unsupported queries.
 import re
 from fractions import Fraction
 
+from ._fractions_common import _has, _answer, normalize_magnitudes
+from ._percent_common import category_percentage
 from ..numbers import read_numbers, format_number
 from ..problem import Problem
 from .counting_and_totals_r00_a1 import _sentence, _singular
 from .percentages_r02_a3 import _labels, _selection, _opposite
-
-
-def _has(pattern, text):
-    return re.search(pattern, text) is not None
-
-
-def _answer(value, explanation):
-    if value < 0:
-        return None
-    return value, explanation + ' = ' + format_number(value) + '.'
 
 
 def _finish(p,result):
@@ -46,10 +38,7 @@ def _prepare(p):
     # Expand monetary magnitude suffixes locally, without changing shared parsing.
     text = re.sub(r'\bwithin\b', 'in', p.text.lower())
     text = re.sub(r'\b(\d+) and a half\b',lambda m:str(Fraction(m.group(1))+Fraction(1,2)),text)
-    text = re.sub(r'(\d[\d,]*(?:\.\d+)?)\s+(thousand|million|billion)\b',
-                  lambda m: format_number(Fraction(m.group(1).replace(',', '')) *
-                      {'thousand': 1000, 'million': 1000000, 'billion': 1000000000}[m.group(2)]),
-                  text)
+    text = normalize_magnitudes(text)
     at = len(text) - len(p.question) if text == p.text.lower() else None
     if at is None:
         from ..problem import ASK
@@ -831,44 +820,6 @@ def _numeric_multiple(p,rates,amounts):
     return _answer(base.value*scale.value*f,'Apply the explicit multiple and the percentage factor')
 
 
-def _selected_percentage(p,rates,amounts):
-    """Percentages of several named categories, including complements."""
-    if rates or not _has(r'^what (?:is the )?percent(?:age)?\b',p.question):
-        return None
-    from .percentages_r02_a3 import _words
-    money=[a for a in amounts if a.kind=='money']
-    if money:
-        # A priced package's mass describes the package, not a second charge.
-        if any(a not in money and not re.match(r'(?:oz|kg|g)\b',p.text[a.end:]) for a in amounts):
-            return None
-        if _has(r'\b(?:each|per|every|discount|tax)\b',p.body):
-            return None
-        counts=money;labels=[]
-        for a in counts:
-            before=re.split(r'[,.;!?]|\band\b',p.text[:a.start])[-1]
-            labels.append(_words(before)-{'buy','buys','bought','cost','costs','price'})
-    else:
-        counts=amounts;labels=[]
-        if not 2<=len(counts)<=5 or _has(r'\b(?:times|twice|more|less|each|per|every|rest|remaining)\b',p.body):
-            return None
-        for a in counts:
-            after=re.split(r'[,.;!?]|\band\b',p.text[a.end:])[0]
-            labels.append(_words(after))
-    if not 2<=len(counts)<=5:
-        return None
-    common=set.intersection(*labels)
-    chosen=[a for a,label in zip(counts,labels) if (label-common)&_words(p.question)]
-    negated=_has(r'\bnot\b|\bnon[- ]',p.question)
-    if not chosen or not negated and len(chosen)==1:
-        return None
-    total=sum((a.value for a in counts),Fraction(0))
-    if total<=0:
-        return None
-    selected=sum((a.value for a in chosen),Fraction(0))
-    return _answer(100*(total-selected if negated else selected)/total,
-                   'Requested category amounts divided by the total, times 100')
-
-
 def solve(problem):
     if not any(n.kind=='percent' for n in problem.numbers) and not _has(
             r'^what (?:is the )?percent(?:age)?\b',problem.question):
@@ -884,7 +835,7 @@ def solve(problem):
     rates=[n for n in p.numbers if n.kind=='percent']
     amounts=[n for n in p.numbers if n.kind!='percent']
     if not rates:
-        return _finish(p,_selected_percentage(p,rates,amounts) or _asked_percentage(p,rates,amounts))
+        return _finish(p,category_percentage(p,amounts) or _asked_percentage(p,rates,amounts))
     if any(not 0<n.value<=1 for n in rates):
         return None
     readers = (

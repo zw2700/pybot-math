@@ -7,44 +7,16 @@ import re
 from dataclasses import replace
 from fractions import Fraction
 
-from ..numbers import read_numbers, format_number, parse_number
+from ._fractions_common import _has, _answer, normalize_fractions
+from ..numbers import read_numbers
 from ..problem import Problem, ASK
 from .counting_and_totals_r00_a1 import _sentence, _singular
 from .comparisons_r01_a2 import _comparisons
 from .percentages_r02_a3 import _labels, _opposite
 
 
-def _has(pattern, text):
-    return re.search(pattern, text) is not None
-
-
-def _answer(value, explanation):
-    if value < 0:
-        return None
-    return value, explanation + ' = ' + format_number(value) + '.'
-
-
-_DENOMINATORS = {'half': 2, 'halves': 2, 'third': 3, 'thirds': 3,
-                 'quarter': 4, 'quarters': 4, 'fourth': 4, 'fourths': 4,
-                 'fifth': 5, 'fifths': 5, 'sixth': 6, 'sixths': 6,
-                 'seventh': 7, 'sevenths': 7, 'eighth': 8, 'eighths': 8,
-                 'ninth': 9, 'ninths': 9, 'tenth': 10, 'tenths': 10}
-_NUMERATOR = r'(?:a|one|two|three|four|five|six|seven|eight|nine|ten|\d+)'
-_WORD_FRACTION = re.compile(r'\b(' + _NUMERATOR + r')[ -]+(' +
-                            '|'.join(sorted(_DENOMINATORS, key=len, reverse=True)) + r')\b')
-
-
 def _prepare(p):
-    text = p.text
-    def fraction(m):
-        numerator = Fraction(1) if m.group(1).lower() == 'a' else parse_number(m.group(1))
-        return str(numerator.numerator) + '/' + str(_DENOMINATORS[m.group(2).lower()])
-    text = _WORD_FRACTION.sub(fraction, text.lower())
-    text = re.sub(r'\bhalf\b', '1/2', text)
-    text = re.sub(r'\bquarter(?=[ -]+(?:hour|of|the)\b)', '1/4', text)
-    text = re.sub(r'(\d+/\d+)(?:st|nd|rd|th)\b', r'\1', text)
-    # A mixed multiplier is one quantity, even with an explicit "and".
-    text = re.sub(r'\b(\d+)\s+and\s+(\d+/\d+)\b', r'\1 \2', text)
+    text = normalize_fractions(p.text.lower())
     asks = list(ASK.finditer(text))
     if not asks:
         return None

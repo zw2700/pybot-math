@@ -7,6 +7,9 @@ import re
 from fractions import Fraction
 from dataclasses import replace
 
+from ._fractions_common import (
+    _has, _answer, has_fraction, normalize_fractions, normalize_magnitudes,
+)
 from ..numbers import read_numbers, format_number
 from ..problem import Problem, ASK
 from .comparisons_r01_a2 import _names, _mentions, _noun
@@ -15,30 +18,13 @@ from .counting_and_totals_r02_a2 import _unit, _asked, _conversion
 from .percentages_r02_a3 import _nested, _single_subset, _selection, _labels
 
 
-def _has(pattern, text):
-    return re.search(pattern, text) is not None
-
-
-def _answer(value, expression):
-    if value < 0:
-        return None
-    return value, expression + ' = ' + format_number(value) + '.'
-
-
 def _prepare(p):
-    text = re.sub(r'\b(\d[\d,]*)\s+(hundred|thousand|million|billion)\b', lambda m: str(int(m.group(1).replace(',', '')) * {'hundred':100, 'thousand':1000, 'million':1000000, 'billion':1000000000}[m.group(2).lower()]), p.text, flags=re.I)
+    text = normalize_magnitudes(p.text)
     text = re.sub(r'\$\.(?=\d)', '$0.', text)
     text = re.sub(r'\ba dozen\b', '1 dozen', text, flags=re.I)
     # Local spelling support; the shared number reader and offsets stay intact.
-    text = re.sub(r'(\d+/\d+)(?:ths|th|rds|rd|nds|nd)\b', r'\1', text)
     text = re.sub(r'\bone and half\b', 'one and a half', text, flags=re.I)
-    denominators = {'fifth': 5, 'sixth': 6, 'seventh': 7, 'eighth': 8,
-                    'ninth': 9, 'tenth': 10}
-    def fraction(m):
-        numerator = Fraction(1) if m.group(1).lower() in ('a', 'an') else read_numbers(m.group(1))[0].value
-        return str(numerator.numerator) + '/' + str(denominators[m.group(2).lower()])
-    text = re.sub(r'\b(a|an|one|two|three|four|five|six|seven|eight|nine|\d+)[ -]+('
-                  + '|'.join(denominators) + r')s?\b', fraction, text, flags=re.I)
+    text = normalize_fractions(text, basic=False)
     text = re.sub(r'\b(twice|thrice|double|triple)\b',
                   lambda m: '2 times' if m.group().lower() in ('twice', 'double') else '3 times', text, flags=re.I)
     return Problem.read(text)
@@ -353,7 +339,6 @@ def _allocations(p):
             return None
         operations.append('convert to ' + dest)
     return _answer(remaining, 'Start with ' + format_number(base) + '; ' + '; '.join(operations))
-
 
 
 def _fixed_budget(p):
@@ -753,7 +738,7 @@ def solve(problem):
     # The shared gate runs first. Percentages are handled by the existing skill.
     if problem is None or any(n.kind == 'percent' for n in problem.numbers):
         return None
-    if not _has(r'\b(?:half|halves|thirds?|fourths?|quarters?|fifths?|sixths?|sevenths?|eighths?|ninths?|tenths?|twice|thrice|double|triple)\b|\d+\s*/\s*\d+', problem.text.lower()):
+    if not (has_fraction(problem.text) or _has(r'\b(?:twice|thrice|double|triple)\b', problem.text.lower())):
         return None
     p = _prepare(problem)
     if p is None:

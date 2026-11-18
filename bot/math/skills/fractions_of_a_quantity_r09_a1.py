@@ -6,21 +6,12 @@ transaction. Each reader accounts for every numeric quantity before answering.
 import re
 from fractions import Fraction
 
+from ._fractions_common import _has, _answer, has_fraction
 from ..numbers import read_numbers, format_number
 from ..problem import Problem, ASK
 from .fractions_of_a_quantity_r03_a3 import _prepare as _base_prepare, _words, _label
 from .counting_and_totals_r00_a1 import _singular
 from .comparisons_r01_a2 import _mentions, _noun
-
-
-def _has(pattern, text):
-    return re.search(pattern, text) is not None
-
-
-def _answer(value, working):
-    if value < 0:
-        return None
-    return value, working + ' = ' + format_number(value) + '.'
 
 
 def _tokens(p):
@@ -31,10 +22,7 @@ def _tokens(p):
 
 
 def _prepare(problem):
-    text = re.sub(r'\b(one|two|three|four|five|six|seven|eight|nine)-(half|third|quarter|fourth)', r'\1 \2', problem.text, flags=re.I)
-    for n in reversed(read_numbers(text)):
-        if ' and ' in n.raw and n.value.denominator > 1:
-            text = text[:n.start]+str(n.value.numerator)+'/'+str(n.value.denominator)+text[n.end:]
+    text = problem.text
     asks = list(ASK.finditer(text))
     if not asks:
         return None
@@ -1315,7 +1303,7 @@ def _time_shares(p, fs):
 def solve(problem):
     if any(n.kind == 'percent' for n in problem.numbers):
         return None
-    if not _has(r'\b(?:half|thirds?|quarters?|fourths?|fifths?|sixths?|sevenths?|eighths?|ninths?|tenths?|twice|thrice|double[ds]?)\b|\d+\s*/\s*\d+', problem.text.lower()):
+    if not (has_fraction(problem.text) or _has(r'\b(?:twice|thrice|double[ds]?)\b', problem.text.lower())):
         return None
     p = _prepare(problem)
     if p is None:
