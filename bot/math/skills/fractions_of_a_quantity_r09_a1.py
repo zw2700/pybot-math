@@ -487,7 +487,11 @@ def _combined_pair(p, fs):
     if len(asked) != 1:
         return None
     large = total.value/(1+f.value)
-    return _answer(large*f.value if asked[0] == lefts[-1] else large,
+    answer = large*f.value if asked[0] == lefts[-1] else large
+    # A proportional time retains the total's unit until the query converts it.
+    if re.match(r'\s+years?\b', p.text[total.end:]) and _has(r'\bmonths?\b', p.question):
+        answer *= 12
+    return _answer(answer,
                    'Combined total / sum of the two relative shares, then select the requested member')
 
 

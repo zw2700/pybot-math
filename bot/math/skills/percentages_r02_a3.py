@@ -55,6 +55,15 @@ def _opposite(label, question):
              ('defective', 'good'), ('busy', 'available'), ('gave away', 'keep'),
              ('go', 'keep'), ('half-day', 'full-day')]
     lw, qw = _words(label), _words(question)
+    if _has(r'\bnever\b', label) and not _has(r'\bnever\b', question) and lw & qw:
+        return True
+    avoided = re.search(r'\bavoid(?:ing)? (?:the )?(.+?)(?=\s+on\b|\s+and\b|[,.;]|$)', label)
+    if avoided and not _has(r'\bavoid(?:ing)?\b', question):
+        # Restrict negation to the avoided object, rather than shared nouns
+        # naming the population or an alternative destination.
+        distinct = _words(avoided.group(1)) - _words(label[avoided.end():])
+        if distinct & qw:
+            return True
     if _has(r"\b(?:not|aren't|don't|doesn't|won't)\b", label) and lw & qw:
         return True
     for a, b in pairs:

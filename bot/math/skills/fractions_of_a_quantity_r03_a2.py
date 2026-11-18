@@ -62,10 +62,20 @@ def _graph(edges, known):
 
 def _comparisons(p, return_values=False):
     """Named affine relations, including fractions and chained comparisons."""
+    # A combined age anchors the sum, not the last named person's age.
+    # The graph reader with total constraints handles this separately.
+    if _has(r'\bcombined age of\b', p.body):
+        return None
+    if _has(r'\bagainst each other\b', p.body):
+        return None  # Played games anchor total wins, not one player's wins.
     text = _tokenize(p)
     if _has(r'\b(?:per|ago|left|remaining|average|fast|faster|speed|spent|returned)\b', text):
         return None
     names = _names(p.text[:len(p.body)])
+    for clause in re.split(r'[.;!?]', _tokenize(p)):
+        if (_has(r'\b(?:total|combined|together|altogether)\b', clause) and
+                re.search(r'Q\d+', clause) and len(set(_mentions(clause, names))) > 1):
+            return None  # This graph has individual anchors, not sum constraints.
     # Days can serve as entities even when they are not sentence subjects.
     names = [n for n in names if n not in ('how', 'what', 'one afternoon')]
     category_relations = []
@@ -164,6 +174,8 @@ def _comparisons(p, return_values=False):
             return None
         before, after = clause.split(tok)
         owners = _mentions(before, list(nodes))
+        if len(set(owners)) > 1 and _has(r'\b(?:total|combined|together|altogether)\b', clause):
+            return None  # The counted sum is not one owner's anchor.
         if not owners:
             owners = _mentions(after, list(nodes))
         if not owners:
@@ -441,7 +453,17 @@ def _fraction_subsets(p):
     if component and not _has(r'\b'+re.escape(component.group(1))+r'\b',p.body):
         return None  # Counting components needs a stated conversion.
     ns = p.numbers
+    if _has(r'\bdivided into equal groups\b', p.body):
+        return None  # A share of one group is not a share of the whole.
+    if _has(r'\bcombined age\b', p.body):
+        return None
+    if (_has(r'\b(?:both|total|together|altogether)\b', p.question) and
+            _has(r'\b(?:the )?(?:price|cost) of\b', p.body)):
+        return None
     fs = [n for n in ns if 0 < n.value < 1 and n.kind != 'money']
+    if any(_has(r'^\s+of\b[^.;!?]*\b(?:that|which) [a-z]+ (?:picked|collected|has|had|bought|made)\b',
+                p.text[n.end:].lower()) for n in fs):
+        return None  # A named owner's stock is not a share of a joint total.
     if not fs or _has(r'\b(?:times|as many|as much|that amount|per|each|more|less|than)\b', p.text.lower()):
         return None
     # A running remainder is a ledger, not a nested category. Likewise a

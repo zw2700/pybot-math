@@ -75,7 +75,7 @@ def _words(text):
 def _label(p, rate):
     text = p.text
     tail = re.split(r'[.;!?]|,(?!\d)|\s+(?:and|while|but)\b', text[rate.end:])[0]
-    predicate = re.search(r'\b(?:are|is|were|was|have|has|wear|play|bear)\s+(.+)', tail)
+    predicate = re.search(r'\b(?:are|is|were|was|have|has|wear|play|bear|prefer(?: to)?)\s+(.+)', tail)
     if predicate:
         return predicate.group(1)
     before = re.split(r'[.;!?]|\band\b', text[:rate.start])[-1]
@@ -149,7 +149,7 @@ def _fraction_ledger(p, rates):
             # Explicit remaining shares compound; a repeated "of it" refers
             # to the originally stated whole rather than a new subtotal.
             recent = text[max(0, n.start-35):n.start] + after.split('.')[0]
-            if changes == 0 or _has(r'\b(?:remaining|remainder|rest|what (?:was|is) left)\b', recent):
+            if n == rates[0] or _has(r'\b(?:remaining|remainder|rest|what (?:was|is) left)\b', recent):
                 a, b = a*(1-n.value), b*(1-n.value)
             else:
                 a -= n.value
@@ -198,6 +198,13 @@ def _fraction_ledger(p, rates):
 
 def _share(p, rates):
     """One counted whole/part and one or two explicitly described shares."""
+    if _has(r'\bof (?:his|her|their) share\b', p.body):
+        return None  # This is a share of an ownership share, not another category.
+    if _has(r'\bdivided into equal groups\b', p.body):
+        return None
+    if (_has(r'\b(?:both|total|together|altogether)\b', p.question) and
+            _has(r'\b(?:the )?(?:price|cost) of\b', p.body)):
+        return None
     component = re.search(r'\bnumber of ([a-z]+) of\b',p.question)
     if component and not _has(r'\b'+re.escape(component.group(1))+r'\b',p.body):
         return None  # Counting components needs a stated conversion.
@@ -210,7 +217,7 @@ def _share(p, rates):
     if (_has(r'\b(?:together|combined)\b', text[:amounts[0].start]) and
             _has(r'\b(?:distance|amount|number) that [a-z]+ (?:ran|read|has|had|made)\b', p.body)):
         return None
-    if _has(r'\b(?:times|twice|thrice|double|triple|as many|as much|age|older|younger|more than|less than|per|each)\b', text):
+    if _has(r'\b(?:times|twice|thrice|double[ds]?|triple[ds]?|as many|as much|age|older|younger|more than|less than|per|each)\b', text):
         return None
     amount = amounts[0]
     if any(_has(r'^\s+of\b[^.;!?]*\b(?:that|which) [a-z]+ (?:picked|collected|has|had|bought|made)\b',
