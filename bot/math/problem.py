@@ -18,7 +18,7 @@ _COMMAND = (r'(?:calculate|(?:find|determine)\s+'
 ASK = re.compile(r'\b(?:' + _HOW + r'|what\s+(?:the\s+)?(?:' + _MEASURE + '|' + _MONEY +
                  r"|year|is|are|was|were|will|would|does|did|do)|what's|" + _COMMAND + r')\b', re.I)
 _QUANTITATIVE = re.compile(r'\b' + _MEASURE + r'\b', re.I)
-_FINANCIAL = re.compile(r'\b(?:' + _MONEY + r'|amount\s+of\s+money|amount[^?]*paid)\b', re.I)
+_FINANCIAL = re.compile(r'\b(?:' + _MONEY + r'|balance|value|amount\s+of\s+money|amount[^?]*paid)\b', re.I)
 _SINGULAR_INTERVAL = re.compile(r'\b(?:a|an)\s+[a-z]+(?:[ -]+[a-z]+)*\s+every\s*$', re.I)
 
 
