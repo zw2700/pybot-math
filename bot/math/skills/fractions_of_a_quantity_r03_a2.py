@@ -88,6 +88,8 @@ def _comparisons(p, return_values=False):
         names = list(dict.fromkeys(n for pair in category_relations for n in pair))
     if len(names) < 2:
         return None
+    if category_relations and _has(r'\beach\b', text):
+        return None  # A per-object comparison is not one category total.
     cue = list(ASK.finditer(text))[-1]
     body, query = text[:cue.start()], text[cue.start():]
     # Split coordinated subjects, while preserving names on the RHS of a relation.
@@ -453,6 +455,11 @@ def _fraction_subsets(p):
     if component and not _has(r'\b'+re.escape(component.group(1))+r'\b',p.body):
         return None  # Counting components needs a stated conversion.
     ns = p.numbers
+    if _has(r'\b(?:price|cost) of\b', p.question):
+        return None  # A price ratio need not be a share of the combined bill.
+    if (_has(r'\bbefore the purchase\b', p.body) and
+            _has(r'\bafter the purchase\b', p.question)):
+        return None  # The requested stock includes the incoming purchase too.
     if _has(r'\bdivided into equal groups\b', p.body):
         return None  # A share of one group is not a share of the whole.
     if _has(r'\bcombined age\b', p.body):
@@ -504,6 +511,10 @@ def _grouped_subset(p):
     if not group or not (_has(r'\beach ' + re.escape(group) + r'\b', text[a.end:b.start]) or re.match(r'\s+(?:[a-z]+\s+){1,3}each\b', text[b.end:])):
         return None
     rate = fs[0]
+    if re.match(r'\s+(?:of )?an? (?:cup|pound|ounce|liter|litre|gallon|gram|kilogram)\b',text[rate.end:]):
+        return None  # A fractional physical amount is not a population share.
+    if _has(r'\b(?:original|at first|initially)\b',p.question):
+        return None  # Counted use and a leftover share require inversion.
     label = _labels(text, rate)
     choice = _selection(label, p.question, p.body)
     if _has(r'\b(?:left|remain|remaining|not)\b', p.question) and _has(r'\b(?:watched|ate|used|sold|gave|drank)\b', text[a.end:]):

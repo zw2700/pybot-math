@@ -1069,7 +1069,26 @@ def _event_comparisons(problem):
                 return None
             mentions = ['eventfirst']
         subject = mentions[0]
-        factors = [i for i in indices if _has(r'\bN'+str(i)+r'\s+(?:times\s+)?(?:as (?:many|much|long)|(?:of )?the (?:number|amount|height|age|length)|the [a-z]+ (?:he|she|they)|that (?:many|number|amount)|of\b)', clause)]
+        # A proper fraction after an explicit rise/fall is a proportional
+        # change to the previous event, not a new literal event anchor.
+        changes = []
+        for i in indices:
+            if not 0 < q.numbers[i].value < 1:
+                continue
+            change = re.search(r'\b(?:(?:went|goes?) (down|up)|'
+                               r'(decreased|increased)) by N'+str(i)+r'\b',clause)
+            if change:
+                changes.append((i, -1 if (change.group(1) == 'down' or
+                                          change.group(2) == 'decreased') else 1))
+        if changes:
+            if len(changes) != 1 or len(indices) != 1 or not previous or previous == subject:
+                return None
+            i,sign = changes[0]
+            edges.append((subject,previous,1+sign*q.numbers[i].value,Fraction(0)))
+            used.add(i)
+            previous = subject
+            continue
+        factors = [i for i in indices if _has(r'\bN'+str(i)+r'\s+(?:times\s+)?(?:as (?:many|much|long|far)|(?:of )?the (?:number|amount|height|age|length)|the [a-z]+ (?:he|she|they)|that (?:many|number|amount)|of\b)', clause)]
         if factors:
             if len(factors) != 1:
                 return None

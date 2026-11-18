@@ -198,6 +198,9 @@ def _fraction_ledger(p, rates):
 
 def _share(p, rates):
     """One counted whole/part and one or two explicitly described shares."""
+    if (_has(r'\bbefore the purchase\b',p.body) and
+            _has(r'\bafter the purchase\b',p.question)):
+        return None
     if _has(r'\bof (?:his|her|their) share\b', p.body):
         return None  # This is a share of an ownership share, not another category.
     if _has(r'\bdivided into equal groups\b', p.body):
@@ -613,10 +616,15 @@ def _nested_shares(p, rates):
         # the final selected group.
         subj2 = re.split(r'[.;!?]|,(?!\d)|\band\b', text[:second.start])[-1]
         second_words = _words(second_label) - _words(second_base.group(1))
+        # A category predicate may become a participial adjective in the query
+        # ("have spots" / "spotted"). Do not stop at the outer category then.
+        selected_nested = bool(second_words & _words(q)) or any(
+            _has(r'\b'+re.escape(w)+r'(?:ed|'+re.escape(w[-1])+r'ed)?\b', q)
+            for w in second_words if w)
         first_predicate = re.search(r'\b(?:are|is|were|was)\s+([^,.;!?]+)', text[first.end:second.start])
-        if first_predicate and _words(first_predicate.group(1)) & _words(q) and not second_words & _words(q):
+        if first_predicate and _words(first_predicate.group(1)) & _words(q) and not selected_nested:
             return _answer(amount.value*first.value, 'Whole x first selected share')
-        if second_words & _words(q):
+        if selected_nested:
             if _opposite(second_label, q):
                 factor = first.value*(1-second.value)
             return _answer(amount.value*factor, 'Whole x first share x nested share')
@@ -659,6 +667,8 @@ def _grouped_share(p, rates):
     if len(rates) != 1 or len(p.numbers) != 3:
         return None
     r = rates[0]
+    if re.match(r'\s+(?:of )?an? (?:cup|pound|ounce|liter|litre|gallon|gram|kilogram)\b',p.text[r.end:]):
+        return None  # A measured quantity must be subtracted, not used as a share.
     # Multiplying a count by a per-period rate yields an amount, not a time.
     if p.question.startswith(('how long', 'how fast')) or _has(r'\b(?:speed|mph)\b', p.question):
         return None
